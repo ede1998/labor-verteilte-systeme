@@ -15,8 +15,10 @@ use prost::Message;
 use snazzy::items;
 
 pub fn create_large_shirt(color: String) -> items::Shirt {
-    let mut shirt = items::Shirt::default();
-    shirt.color = color;
+    let mut shirt = items::Shirt {
+        color,
+        ..Default::default()
+    };
     shirt.set_size(items::shirt::Size::Large);
     shirt
 }
