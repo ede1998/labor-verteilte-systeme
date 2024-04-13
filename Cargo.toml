@@ -3,6 +3,11 @@ members = [
     "exercises/preparation",
     "exercises/client_server",
     "exercises/publisher_subscriber",
+    "home_automation_protobuf",
+    "home_automation_sensor",
+    "home_automation_actuator",
+    "home_automation_controller",
+    "home_automation_client",
 ]
 resolver = "2"
 exclude = ["rust-zmq"]
