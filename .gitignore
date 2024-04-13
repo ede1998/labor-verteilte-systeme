@@ -1,3 +1,4 @@
 /target
 /.vscode
 shirt.protobin
+/rust-zmq

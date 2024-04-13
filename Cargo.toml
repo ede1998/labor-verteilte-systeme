@@ -1,4 +1,11 @@
 [workspace]
-members = ["preparation"]
+members = ["preparation", "client_server"]
 resolver = "2"
 exclude = ["rust-zmq"]
+
+[workspace.dependencies]
+bytes = "1.6.0"
+prost = "0.12.4"
+prost-types = "0.12.4"
+zmq = "0.10.0"
+prost-build = "0.12.4"
