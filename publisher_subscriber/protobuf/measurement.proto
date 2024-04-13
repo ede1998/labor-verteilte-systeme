@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package server_client;
+
+enum TemperatureUnit {
+    Celsius = 0;
+    Kelvin = 1;
+    Fahrenheit = 2;
+}
+
+message Measurement {
+    TemperatureUnit unit = 1;
+    double value = 2; 
+}

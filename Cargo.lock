@@ -380,6 +380,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "publisher_subscriber"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "prost",
+ "prost-build",
+ "prost-types",
+ "rand",
+ "zmq",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"

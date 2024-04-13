@@ -1,5 +1,5 @@
 [workspace]
-members = ["preparation", "client_server"]
+members = ["preparation", "client_server", "publisher_subscriber"]
 resolver = "2"
 exclude = ["rust-zmq"]
 
