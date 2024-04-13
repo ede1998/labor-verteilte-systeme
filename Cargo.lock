@@ -213,6 +213,10 @@ version = "0.1.0"
 [[package]]
 name = "home_automation_protobuf"
 version = "0.1.0"
+dependencies = [
+ "prost",
+ "prost-build",
+]
 
 [[package]]
 name = "home_automation_sensor"

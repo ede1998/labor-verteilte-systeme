@@ -5,13 +5,14 @@
 ![Types](./images/types.svg)
 
 # Sensor <> Controller
-- the sensor __publishes__ commands to register/unregister itself to the controller
+- the sensor __sends__ command __requests__ to register/unregister itself to the controller
 
 ```protobuf
 message EntityDiscoveryCommand {
 	enum Command {
 		REGISTER           = 0;
 		UNREGISTER         = 1;
+		HEARTBEAT          = 2;
 	}
 	enum EntityType {
 		SENSOR             = 0;
@@ -60,9 +61,9 @@ message ResponseCode {
 ```
 
 # Actuator <> Controller
-- the actuator __publishes__ commands to register/unregister itself to the controller
+- the actuator __sends__ command __requests__ to register/unregister itself to the controller
 - the controller can __request__ the actuator to change its state
-- the actuator __publishes__ its state to the controller
+- the actuator __publishes__ its state to the controller whenever it changes
 
 ```protobuf
 message ActuatorState {

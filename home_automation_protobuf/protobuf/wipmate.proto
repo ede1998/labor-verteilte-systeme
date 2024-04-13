@@ -10,6 +10,7 @@ message EntityDiscoveryCommand {
   enum Command {
     REGISTER = 0;
     UNREGISTER = 1;
+    HEARTBEAT = 2;
   }
   enum EntityType {
     SENSOR = 0;
