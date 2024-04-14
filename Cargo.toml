@@ -3,7 +3,7 @@ members = [
     "exercises/preparation",
     "exercises/client_server",
     "exercises/publisher_subscriber",
-    "home_automation_protobuf",
+    "home_automation_common",
     "home_automation_sensor",
     "home_automation_actuator",
     "home_automation_controller",
@@ -18,3 +18,4 @@ prost = "0.12.4"
 prost-types = "0.12.4"
 zmq = "0.10.0"
 prost-build = "0.12.4"
+home_automation_common = { version = "0.1.0", path = "home_automation_common" }

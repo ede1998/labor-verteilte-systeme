@@ -201,17 +201,19 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 [[package]]
 name = "home_automation_actuator"
 version = "0.1.0"
+dependencies = [
+ "home_automation_common",
+]
 
 [[package]]
 name = "home_automation_client"
 version = "0.1.0"
+dependencies = [
+ "home_automation_common",
+]
 
 [[package]]
-name = "home_automation_controller"
-version = "0.1.0"
-
-[[package]]
-name = "home_automation_protobuf"
+name = "home_automation_common"
 version = "0.1.0"
 dependencies = [
  "prost",
@@ -219,8 +221,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "home_automation_controller"
+version = "0.1.0"
+dependencies = [
+ "home_automation_common",
+]
+
+[[package]]
 name = "home_automation_sensor"
 version = "0.1.0"
+dependencies = [
+ "home_automation_common",
+]
 
 [[package]]
 name = "indexmap"

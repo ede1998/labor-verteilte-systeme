@@ -1,5 +1,5 @@
 [package]
-name = "home_automation_protobuf"
+name = "home_automation_common"
 version = "0.1.0"
 edition = "2021"
 
