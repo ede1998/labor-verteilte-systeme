@@ -4,7 +4,16 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+anyhow = { workspace = true }
+opentelemetry = "0.22.0"
+opentelemetry-zipkin = "0.20.0"
 prost = { workspace = true }
+tracing-opentelemetry = "0.23.0"
+tracing-subscriber = { version = "0.3.18", features = [
+    "json",
+    "time",
+    "env-filter",
+] }
 
 [build-dependencies]
 prost-build = { workspace = true }

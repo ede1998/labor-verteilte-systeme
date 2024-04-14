@@ -13,9 +13,13 @@ resolver = "2"
 exclude = ["rust-zmq"]
 
 [workspace.dependencies]
+anyhow = "1.0.82"
+clap = { version = "4.5.4", features = ["derive"] }
 bytes = "1.6.0"
 prost = "0.12.4"
 prost-types = "0.12.4"
 zmq = "0.10.0"
 prost-build = "0.12.4"
 home_automation_common = { version = "0.1.0", path = "home_automation_common" }
+
+tracing = { version = "0.1.40", features = ["attributes"] }

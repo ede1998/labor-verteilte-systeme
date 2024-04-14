@@ -10,7 +10,6 @@ let
   rust-overlay = (
     import (builtins.fetchTarball "https://github.com/oxalica/rust-overlay/archive/master.tar.gz")
   );
-  pkgs = (import <nixpkgs> { overlays = [ rust-overlay ]; });
   zipkin = stdenv.mkDerivation rec {
     version = "3.2.1";
     pname = "zipkin-server";
@@ -37,11 +36,13 @@ let
       mainProgram = "zipkin-server";
     };
   };
+  pkgs = (import <nixpkgs> { overlays = [ rust-overlay ]; });
 in
 pkgs.mkShell {
-
   packages = [
+    pkgs.openssl
     pkgs.nixfmt-rfc-style
+    pkgs.pkg-config
     pkgs.protobuf
     (pkgs.rust-bin.beta.latest.default.override {
       extensions = [
