@@ -5,8 +5,11 @@ edition = "2021"
 
 [dependencies]
 anyhow = { workspace = true }
+async-trait = { version = "*", default-features = false }
+bytes = { workspace = true }
 opentelemetry = "0.22.0"
-opentelemetry-zipkin = "0.20.0"
+opentelemetry-zipkin = { version = "0.20.0", default-features = false }
+opentelemetry-http = { version = "*", default-features = false }
 prost = { workspace = true }
 tracing-opentelemetry = "0.23.0"
 tracing-subscriber = { version = "0.3.18", features = [
@@ -14,6 +17,7 @@ tracing-subscriber = { version = "0.3.18", features = [
     "time",
     "env-filter",
 ] }
+ureq = { version = "2.9.6", features = ["http-interop"] }
 
 [build-dependencies]
 prost-build = { workspace = true }
