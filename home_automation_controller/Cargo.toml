@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = { workspace = true }
-home_automation_common = { workspace = true }
-tracing = { workspace = true }
+anyhow.workspace = true
+home_automation_common.workspace = true
+tracing.workspace = true

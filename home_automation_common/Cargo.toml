@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = { workspace = true }
+anyhow.workspace = true
 async-trait = { version = "*", default-features = false }
-bytes = { workspace = true }
+bytes.workspace = true
 opentelemetry = "0.22.0"
 opentelemetry-zipkin = { version = "0.20.0", default-features = false }
 opentelemetry-http = { version = "*", default-features = false }
-prost = { workspace = true }
+prost.workspace = true
 tracing-opentelemetry = "0.23.0"
 tracing-subscriber = { version = "0.3.18", features = [
     "json",
@@ -20,4 +20,4 @@ tracing-subscriber = { version = "0.3.18", features = [
 ureq = { version = "2.9.6", features = ["http-interop"] }
 
 [build-dependencies]
-prost-build = { workspace = true }
+prost-build.workspace = true
