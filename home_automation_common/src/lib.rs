@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use anyhow::Context;
 use bytes::Bytes;
 use opentelemetry_http::{HttpError, Request, Response};
@@ -7,10 +9,20 @@ pub mod protobuf {
     include!(concat!(env!("OUT_DIR"), "/wipmate.rs"));
 }
 
+static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);
+
+#[inline]
+pub fn shutdown_requested() -> bool {
+    SHUTDOWN_REQUESTED.load(Ordering::SeqCst)
+}
+
 pub struct OpenTelemetryConfiguration(());
 
 impl OpenTelemetryConfiguration {
     pub fn new(service_name: impl Into<String>) -> anyhow::Result<Self> {
+        if std::env::var("RUST_LOG").is_err() {
+            std::env::set_var("RUST_LOG", "debug,ureq=info");
+        }
         opentelemetry::global::set_text_map_propagator(opentelemetry_zipkin::Propagator::new());
 
         let tracer = opentelemetry_zipkin::new_pipeline()
@@ -28,6 +40,11 @@ impl OpenTelemetryConfiguration {
             .with(EnvFilter::from_default_env())
             .with(tracer)
             .init();
+
+        ctrlc::set_handler(|| {
+            SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
+        })
+        .context("Failed to install signal handler")?;
 
         Ok(OpenTelemetryConfiguration(()))
     }

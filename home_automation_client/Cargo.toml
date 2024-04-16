@@ -4,4 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+anyhow.workspace = true
+bytes.workspace = true
 home_automation_common.workspace = true
+prost.workspace = true
+zmq.workspace = true
