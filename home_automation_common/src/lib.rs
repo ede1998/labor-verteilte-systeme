@@ -5,6 +5,21 @@ use bytes::Bytes;
 use opentelemetry_http::{HttpError, Request, Response};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
+pub trait AnyhowExt<T> {
+    fn erase_err(self) -> anyhow::Result<T>;
+}
+
+impl<T, E> AnyhowExt<T> for Result<T, E>
+where
+    E: std::error::Error + Send + Sync + 'static,
+{
+    fn erase_err(self) -> anyhow::Result<T> {
+        self.map_err(Into::into)
+    }
+}
+
+pub mod zmq_sockets;
+
 pub mod protobuf {
     include!(concat!(env!("OUT_DIR"), "/wipmate.rs"));
 }

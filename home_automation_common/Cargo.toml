@@ -7,9 +7,10 @@ edition = "2021"
 anyhow.workspace = true
 async-trait = { version = "*", default-features = false }
 bytes.workspace = true
+ctrlc = { version = "3.4.4", features = ["termination"] }
 opentelemetry = "0.22.0"
-opentelemetry-zipkin = { version = "0.20.0", default-features = false }
 opentelemetry-http = { version = "*", default-features = false }
+opentelemetry-zipkin = { version = "0.20.0", default-features = false }
 prost.workspace = true
 tracing-opentelemetry = "0.23.0"
 tracing-subscriber = { version = "0.3.18", features = [
@@ -18,7 +19,7 @@ tracing-subscriber = { version = "0.3.18", features = [
     "env-filter",
 ] }
 ureq = { version = "2.9.6", features = ["http-interop"] }
-ctrlc = { version = "3.4.4", features = ["termination"] }
+zmq.workspace = true
 
 [build-dependencies]
 prost-build.workspace = true

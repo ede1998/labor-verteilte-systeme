@@ -1,20 +1,16 @@
 use std::time::Duration;
 
-use anyhow::Context;
-use bytes::Bytes;
-use home_automation_common::protobuf::{
-    entity_discovery_command::{Command, EntityType},
-    EntityDiscoveryCommand, ResponseCode,
+use home_automation_common::{
+    protobuf::{
+        entity_discovery_command::{Command, EntityType},
+        EntityDiscoveryCommand, ResponseCode,
+    },
+    zmq_sockets,
 };
-use prost::Message;
 
 fn main() -> anyhow::Result<()> {
-    let context = zmq::Context::new();
-    let client = context.socket(zmq::REQ)?;
-
-    client
-        .connect("tcp://localhost:5556")
-        .context("Failed to connect socket")?;
+    let context = zmq_sockets::Context::new();
+    let client = zmq_sockets::Requester::new(&context)?.connect("tcp://localhost:5556")?;
 
     loop {
         let request = EntityDiscoveryCommand {
@@ -22,11 +18,9 @@ fn main() -> anyhow::Result<()> {
             entity_name: "asd".to_owned(),
             entity_type: EntityType::Sensor.into(),
         };
-        let buffer = request.encode_to_vec();
-        client.send(buffer, 0)?;
+        client.send(request)?;
 
-        let bytes: Bytes = client.recv_bytes(0)?.into();
-        let measurement = ResponseCode::decode(bytes).context("Failed to decode message")?;
+        let measurement: ResponseCode = client.receive()?;
         println!("Received {measurement:?}");
 
         std::thread::sleep(Duration::from_millis(1000));

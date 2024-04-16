@@ -374,10 +374,7 @@ name = "home_automation_client"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bytes",
  "home_automation_common",
- "prost",
- "zmq",
 ]
 
 [[package]]
@@ -396,6 +393,7 @@ dependencies = [
  "tracing-opentelemetry",
  "tracing-subscriber",
  "ureq",
+ "zmq",
 ]
 
 [[package]]
@@ -403,11 +401,8 @@ name = "home_automation_controller"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bytes",
  "home_automation_common",
- "prost",
  "tracing",
- "zmq",
 ]
 
 [[package]]
