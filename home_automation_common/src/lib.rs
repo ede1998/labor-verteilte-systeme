@@ -57,6 +57,7 @@ impl OpenTelemetryConfiguration {
             .init();
 
         ctrlc::set_handler(|| {
+            tracing::info!("Shutdown signal received");
             SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
         })
         .context("Failed to install signal handler")?;

@@ -1,4 +1,6 @@
-use anyhow::{Context as _, Result};
+use std::collections::HashMap;
+
+use anyhow::{anyhow, Context as _, Result};
 
 pub use zmq::Error;
 
@@ -146,26 +148,31 @@ impl<Kind> Socket<Kind, markers::Detached> {
 
 impl Publisher<markers::Linked> {
     /// Publish the given message on the given topic.
+    #[tracing::instrument(skip(self), fields(topic = &*String::from_utf8_lossy(topic.as_ref())))]
     pub fn send<M>(&self, topic: impl AsRef<[u8]>, message: M) -> Result<()>
     where
-        M: prost::Message + Default,
+        M: prost::Message + prost::Name + Default + std::fmt::Debug,
     {
-        let topic_msg: zmq::Message = topic.as_ref().into();
-        let buffer_msg = message.encode_to_vec().into();
         self.inner
-            .send_multipart([topic_msg, buffer_msg], 0)
+            .send(topic.as_ref(), zmq::SNDMORE)
             .with_context(|| {
                 let topic = String::from_utf8_lossy(topic.as_ref());
                 format!("Failed to send message {message:?} on topic {topic}")
-            })
+            })?;
+
+        self.tracing_send(message).with_context(|| {
+            let topic = String::from_utf8_lossy(topic.as_ref());
+            format!("Failed to send on topic {topic}")
+        })
     }
 }
 
 impl Subscriber<markers::Linked> {
     /// Block until a message is received on any of the subscribed topics.
+    #[tracing::instrument(skip(self))]
     pub fn receive<M>(&self) -> Result<(String, M)>
     where
-        M: prost::Message + Default,
+        M: prost::Message + prost::Name + Default,
     {
         let topic = self
             .inner
@@ -173,12 +180,8 @@ impl Subscriber<markers::Linked> {
             .erase_err()
             .and_then(|msg| std::str::from_utf8(&msg).map(ToOwned::to_owned).erase_err())
             .context("Failed to receive topic")?;
-        let bytes = self
-            .inner
-            .recv_msg(0)
-            .context("Failed to receive payload")?;
-        let payload = M::decode(&*bytes)
-            .with_context(|| format!("Failed to decode payload {}", std::any::type_name::<M>()))?;
+
+        let payload = self.tracing_receive()?;
 
         Ok((topic, payload))
     }
@@ -202,36 +205,136 @@ impl<LinkState> Subscriber<LinkState> {
     }
 }
 
-impl<Kind> Socket<Kind, markers::Linked>
-where
-    Kind: markers::ReqRep,
-{
+impl Requester<markers::Linked> {
     /// Send a message with the REQ-REP pattern.
+    #[tracing::instrument(skip(self))]
     pub fn send<M>(&self, message: M) -> Result<()>
     where
-        M: prost::Message + std::fmt::Debug,
+        M: prost::Message + prost::Name + std::fmt::Debug,
     {
-        let buffer = message.encode_to_vec();
+        self.tracing_send(message)
+            .inspect_err(|e| tracing::error!(error=%e, "Failed to receive message: {e}"))
+    }
+
+    /// Block until a message is received with the REQ-REP pattern.
+    #[tracing::instrument(skip(self))]
+    pub fn receive<M>(&self) -> Result<M>
+    where
+        M: prost::Message + prost::Name + Default,
+    {
+        self.tracing_receive()
+            .inspect_err(|e| tracing::error!(error=%e, "Failed to receive message: {e}"))
+            .inspect(|m| tracing::info!(return=?m, "Received message: {m:?}"))
+    }
+}
+
+impl Replier<markers::Linked> {
+    /// Send a message with the REQ-REP pattern.
+    #[tracing::instrument(skip(self), err)]
+    pub fn send<M>(&self, message: M) -> Result<()>
+    where
+        M: prost::Message + prost::Name + std::fmt::Debug,
+    {
+        self.tracing_send(message)
+            .inspect_err(|e| tracing::error!(error=%e, "Failed to receive message: {e}"))
+    }
+
+    /// Block until a message is received with the REQ-REP pattern.
+    // no tracing::instrument here to avoid cycles in span tree
+    pub fn receive<M>(&self) -> Result<M>
+    where
+        M: prost::Message + prost::Name + Default,
+    {
+        let result = self.tracing_receive();
+        let _span = tracing::info_span!(stringify!(receive)).entered();
+        result
+            .inspect_err(|e| tracing::error!(error=%e, "Failed to receive message: {e}"))
+            .inspect(|m| tracing::info!(return=?m, "Received message: {m:?}"))
+    }
+}
+
+impl<Kind> Socket<Kind, markers::Linked>
+where
+    Kind: markers::SocketKind,
+{
+    /// Receives a message envelope and its contained message of the given type.
+    /// Based on the envelope information, the span id is correlated to the remote
+    /// span for tracing.
+    fn tracing_receive<M>(&self) -> Result<M>
+    where
+        M: prost::Message + prost::Name + Default,
+    {
+        use crate::protobuf::PayloadEnvelope;
+        use prost::Message;
+        use tracing_opentelemetry::OpenTelemetrySpanExt as _;
+
+        let message = self
+            .inner
+            .recv_msg(0)
+            .context("Failed to receive message")?;
+
+        let envelope = PayloadEnvelope::decode(&*message).context("Failed to decode envelope")?;
+
+        let span = tracing::Span::current();
+        let parent_cx = opentelemetry::global::get_text_map_propagator(|propagator| {
+            propagator.extract(&TraceExtractor(&envelope.headers))
+        });
+        span.set_parent(parent_cx);
+
+        envelope
+            .payload
+            .ok_or_else(|| anyhow!("Missing payload"))?
+            .to_msg()
+            .with_context(|| format!("Failed to decode payload {}", std::any::type_name::<M>()))
+    }
+
+    /// Sends a message envelope that contains the given message.
+    fn tracing_send<M>(&self, message: M) -> Result<()>
+    where
+        M: prost::Message + prost::Name + std::fmt::Debug,
+    {
+        use crate::protobuf::PayloadEnvelope;
+        use prost::Message;
+        use tracing_opentelemetry::OpenTelemetrySpanExt as _;
+
+        let span = tracing::Span::current();
+        let cx = span.context();
+        let mut headers = HashMap::default();
+        opentelemetry::global::get_text_map_propagator(|propagator| {
+            propagator.inject_context(&cx, &mut TraceInjector(&mut headers))
+        });
+
+        let envelope = PayloadEnvelope {
+            headers,
+            payload: Some(prost_types::Any::from_msg(&message).unwrap()),
+        };
+        let buffer = envelope.encode_to_vec();
+
         self.inner
             .send(buffer, 0)
             .with_context(|| format!("Failed to send message {message:?}"))
     }
+}
 
-    /// Block until a message is received with the REQ-REP pattern.
-    pub fn receive<M>(&self) -> Result<M>
-    where
-        M: prost::Message + Default,
-    {
-        let bytes = self
-            .inner
-            .recv_msg(0)
-            .context("Failed to receive payload")?;
-        M::decode(&*bytes)
-            .with_context(|| format!("Failed to decode payload {}", std::any::type_name::<M>()))
+struct TraceInjector<'a>(&'a mut HashMap<String, String>);
+
+impl<'a> opentelemetry::propagation::Injector for TraceInjector<'a> {
+    fn set(&mut self, key: &str, value: String) {
+        self.0.insert(key.into(), value);
     }
 }
 
-impl Replier<markers::Linked> {}
+struct TraceExtractor<'a>(&'a HashMap<String, String>);
+
+impl<'a> opentelemetry::propagation::Extractor for TraceExtractor<'a> {
+    fn get(&self, key: &str) -> Option<&str> {
+        self.0.get(key).map(String::as_str)
+    }
+
+    fn keys(&self) -> Vec<&str> {
+        self.0.keys().map(String::as_str).collect()
+    }
+}
 
 pub mod markers {
     #[derive(Debug, Default, Clone, Copy)]
@@ -262,7 +365,7 @@ pub mod markers {
     }
 
     #[doc(hidden)]
-    pub trait ReqRep: sealed::Seal {}
+    pub trait ReqRep: SocketKind {}
 
     impl ReqRep for Requester {}
     impl ReqRep for Replier {}

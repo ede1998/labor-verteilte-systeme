@@ -12,6 +12,8 @@ opentelemetry = "0.22.0"
 opentelemetry-http = { version = "*", default-features = false }
 opentelemetry-zipkin = { version = "0.20.0", default-features = false }
 prost.workspace = true
+prost-types.workspace = true
+tracing.workspace = true
 tracing-opentelemetry = "0.23.0"
 tracing-subscriber = { version = "0.3.18", features = [
     "json",

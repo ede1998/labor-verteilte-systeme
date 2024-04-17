@@ -375,6 +375,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "home_automation_common",
+ "tracing",
 ]
 
 [[package]]
@@ -390,6 +391,8 @@ dependencies = [
  "opentelemetry-zipkin",
  "prost",
  "prost-build",
+ "prost-types",
+ "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
  "ureq",
