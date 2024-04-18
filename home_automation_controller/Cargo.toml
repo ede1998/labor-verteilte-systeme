@@ -7,3 +7,4 @@ edition = "2021"
 anyhow.workspace = true
 home_automation_common.workspace = true
 tracing.workspace = true
+dashmap = "5.5.3"                       # for registering entitities -> parallel accesses in different threads

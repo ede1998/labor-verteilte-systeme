@@ -31,6 +31,15 @@ pub fn shutdown_requested() -> bool {
     SHUTDOWN_REQUESTED.load(Ordering::SeqCst)
 }
 
+pub fn install_signal_handler(mut context: zmq_sockets::Context) -> anyhow::Result<()> {
+    ctrlc::set_handler(move || {
+        tracing::info!("Shutdown signal received");
+        SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
+        context.destroy().expect("Failed to destroy context");
+    })
+    .context("Failed to install signal handler")
+}
+
 pub struct OpenTelemetryConfiguration(());
 
 impl OpenTelemetryConfiguration {
@@ -55,12 +64,6 @@ impl OpenTelemetryConfiguration {
             .with(EnvFilter::from_default_env())
             .with(tracer)
             .init();
-
-        ctrlc::set_handler(|| {
-            tracing::info!("Shutdown signal received");
-            SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
-        })
-        .context("Failed to install signal handler")?;
 
         Ok(OpenTelemetryConfiguration(()))
     }
