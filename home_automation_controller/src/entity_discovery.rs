@@ -1,13 +1,15 @@
+use anyhow::Context as _;
 use home_automation_common::{
     protobuf::{entity_discovery_command, response_code, EntityDiscoveryCommand, ResponseCode},
-    shutdown_requested, zmq_sockets,
+    shutdown_requested,
+    zmq_sockets::{self, markers::Linked},
 };
 
-use crate::state::AppState;
+use crate::state::{AppState, Entity};
 
 pub struct EntityDiscoveryTask<'a> {
     app_state: &'a AppState,
-    server: zmq_sockets::Replier<zmq_sockets::markers::Linked>,
+    server: zmq_sockets::Replier<Linked>,
 }
 
 impl<'a> EntityDiscoveryTask<'a> {
@@ -30,26 +32,37 @@ impl<'a> EntityDiscoveryTask<'a> {
         use dashmap::mapref::entry::Entry;
         use entity_discovery_command::Command;
         use response_code::Code;
-        let request: EntityDiscoveryCommand = self.server.receive()?;
+        let (request, ip): (EntityDiscoveryCommand, _) = self.server.receive_with_ip()?;
 
-        let response_code = match request.command() {
-            Command::Register => match self.app_state.actuators.entry(request.entity_name) {
-                Entry::Occupied(o) => {
-                    tracing::error!("Actuator {} already registered", o.key());
-                    Code::Error
+        let response_code = match request.command {
+            Some(Command::Register(r)) => {
+                match self.app_state.entities.entry(request.entity_name) {
+                    Entry::Occupied(o) => {
+                        tracing::error!("Entity {} already registered", o.key());
+                        Code::Error
+                    }
+                    Entry::Vacant(v) => {
+                        tracing::info!("Registering entity {}", v.key());
+                        match self.open_back_channel(ip, r.port) {
+                            Ok(req) => {
+                                v.insert(Entity::new(req));
+                                Code::Ok
+                            }
+                            Err(e) => {
+                                tracing::error!(error=%e, "Failed to create back-channel: {e:#}");
+                                Code::Error
+                            }
+                        }
+                    }
                 }
-                Entry::Vacant(v) => {
-                    tracing::info!("Registering actuator {}", v.key());
-                    v.insert(());
-                    Code::Ok
-                }
-            },
-            Command::Unregister => {
+            }
+            Some(Command::Unregister(())) => {
                 todo!()
             }
-            Command::Heartbeat => {
+            Some(Command::Heartbeat(())) => {
                 todo!()
             }
+            None => anyhow::bail!("EntityDiscoveryCommand is missing the command"),
         };
 
         let response = ResponseCode {
@@ -57,5 +70,16 @@ impl<'a> EntityDiscoveryTask<'a> {
         };
         self.server.send(response)?;
         Ok(())
+    }
+
+    fn open_back_channel(
+        &self,
+        ip: String,
+        port: u32,
+    ) -> anyhow::Result<zmq_sockets::Requester<Linked>> {
+        zmq_sockets::Requester::new(&self.app_state.context)
+            .context("Failed to create back-channel socket")?
+            .connect(&format!("tcp://{ip}:{port}"))
+            .context("Failed to connect back-channel socket")
     }
 }

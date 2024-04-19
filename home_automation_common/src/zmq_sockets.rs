@@ -183,7 +183,7 @@ impl Subscriber<markers::Linked> {
 
         let payload = self.tracing_receive()?;
 
-        Ok((topic, payload))
+        Ok((topic, payload.0))
     }
 }
 
@@ -223,6 +223,7 @@ impl Requester<markers::Linked> {
         M: prost::Message + prost::Name + Default,
     {
         self.tracing_receive()
+            .map(|(m, _)| m)
             .inspect_err(|e| tracing::error!(error=%e, "Failed to receive message: {e:#}"))
             .inspect(|m| tracing::info!(return=?m, "Received message: {m:?}"))
     }
@@ -248,6 +249,19 @@ impl Replier<markers::Linked> {
         let result = self.tracing_receive();
         let _span = tracing::info_span!(stringify!(receive)).entered();
         result
+            .map(|(m, _)| m)
+            .inspect_err(|e| tracing::error!(error=%e, "Failed to receive message: {e:#}"))
+            .inspect(|m| tracing::info!(return=?m, "Received message: {m:?}"))
+    }
+    /// Block until a message is received with the REQ-REP pattern.
+    // no tracing::instrument here to avoid cycles in span tree
+    pub fn receive_with_ip<M>(&self) -> Result<(M, String)>
+    where
+        M: prost::Message + prost::Name + Default,
+    {
+        let result = self.tracing_receive();
+        let _span = tracing::info_span!(stringify!(receive)).entered();
+        result
             .inspect_err(|e| tracing::error!(error=%e, "Failed to receive message: {e:#}"))
             .inspect(|m| tracing::info!(return=?m, "Received message: {m:?}"))
     }
@@ -260,7 +274,7 @@ where
     /// Receives a message envelope and its contained message of the given type.
     /// Based on the envelope information, the span id is correlated to the remote
     /// span for tracing.
-    fn tracing_receive<M>(&self) -> Result<M>
+    fn tracing_receive<M>(&self) -> Result<(M, String)>
     where
         M: prost::Message + prost::Name + Default,
     {
@@ -268,10 +282,14 @@ where
         use prost::Message;
         use tracing_opentelemetry::OpenTelemetrySpanExt as _;
 
-        let message = self
+        let mut message = self
             .inner
             .recv_msg(0)
             .context("Failed to receive message")?;
+        let ip = message
+            .gets("Peer-Address")
+            .ok_or_else(|| anyhow!("missing remote address"))?
+            .to_owned();
 
         let envelope = PayloadEnvelope::decode(&*message).context("Failed to decode envelope")?;
 
@@ -286,6 +304,7 @@ where
             .ok_or_else(|| anyhow!("Missing payload"))?
             .to_msg()
             .with_context(|| format!("Failed to decode payload {}", std::any::type_name::<M>()))
+            .map(|e| (e, ip))
     }
 
     /// Sends a message envelope that contains the given message.
@@ -313,6 +332,20 @@ where
         self.inner
             .send(buffer, 0)
             .with_context(|| format!("Failed to send message {message:?}"))
+    }
+
+    pub fn get_last_endpoint(&self) -> Result<std::net::SocketAddr> {
+        let result = self
+            .inner
+            .get_last_endpoint()
+            .context("Failed to get last endpoint")?
+            .map_err(|_| anyhow!("Invalid UTF-8"))?;
+
+        result
+            .split_once("//")
+            .map_or(&*result, |r| r.1)
+            .parse()
+            .context("Failed to parse endpoint")
     }
 }
 

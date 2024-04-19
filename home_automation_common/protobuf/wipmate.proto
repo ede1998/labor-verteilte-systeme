@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 import "google/protobuf/any.proto";
+import "google/protobuf/empty.proto";
 
 package wipmate;
 
@@ -9,18 +10,18 @@ package wipmate;
 // controller
 
 message EntityDiscoveryCommand {
-  enum Command {
-    REGISTER = 0;
-    UNREGISTER = 1;
-    HEARTBEAT = 2;
-  }
+  message Registration { uint32 port = 1; }
   enum EntityType {
     SENSOR = 0;
     ACTUATOR = 1;
   }
-  Command command = 1;
-  EntityType entity_type = 2;
-  string entity_name = 3;
+  oneof command {
+    Registration register = 3;
+    google.protobuf.Empty unregister = 4;
+    google.protobuf.Empty heartbeat = 5;
+  }
+  EntityType entity_type = 1;
+  string entity_name = 2;
 }
 
 // - the sensor __publishes__ sensor data in the specified update frequency to
