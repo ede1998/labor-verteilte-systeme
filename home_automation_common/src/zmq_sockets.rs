@@ -213,7 +213,7 @@ impl Requester<markers::Linked> {
         M: prost::Message + prost::Name + std::fmt::Debug,
     {
         self.tracing_send(message)
-            .inspect_err(|e| tracing::error!(error=%e, "Failed to receive message: {e}"))
+            .inspect_err(|e| tracing::error!(error=%e, "Failed to send message: {e:#}"))
     }
 
     /// Block until a message is received with the REQ-REP pattern.
@@ -223,7 +223,7 @@ impl Requester<markers::Linked> {
         M: prost::Message + prost::Name + Default,
     {
         self.tracing_receive()
-            .inspect_err(|e| tracing::error!(error=%e, "Failed to receive message: {e}"))
+            .inspect_err(|e| tracing::error!(error=%e, "Failed to receive message: {e:#}"))
             .inspect(|m| tracing::info!(return=?m, "Received message: {m:?}"))
     }
 }
@@ -236,7 +236,7 @@ impl Replier<markers::Linked> {
         M: prost::Message + prost::Name + std::fmt::Debug,
     {
         self.tracing_send(message)
-            .inspect_err(|e| tracing::error!(error=%e, "Failed to receive message: {e}"))
+            .inspect_err(|e| tracing::error!(error=%e, "Failed to send message: {e:#}"))
     }
 
     /// Block until a message is received with the REQ-REP pattern.
@@ -248,7 +248,7 @@ impl Replier<markers::Linked> {
         let result = self.tracing_receive();
         let _span = tracing::info_span!(stringify!(receive)).entered();
         result
-            .inspect_err(|e| tracing::error!(error=%e, "Failed to receive message: {e}"))
+            .inspect_err(|e| tracing::error!(error=%e, "Failed to receive message: {e:#}"))
             .inspect(|m| tracing::info!(return=?m, "Received message: {m:?}"))
     }
 }
