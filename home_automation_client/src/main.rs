@@ -44,5 +44,9 @@ fn send_entity(
 
     let response_code: ResponseCode = client.receive()?;
     tracing::debug!("Received {response_code:?}");
+
+    let response_code: ResponseCode = rep.receive()?;
+    tracing::debug!("HALLELUJAH {response_code:?}");
+
     Ok(())
 }
