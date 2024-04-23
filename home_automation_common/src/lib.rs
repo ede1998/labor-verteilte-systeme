@@ -22,6 +22,18 @@ pub mod zmq_sockets;
 
 pub mod protobuf {
     include!(concat!(env!("OUT_DIR"), "/wipmate.rs"));
+
+    impl<T, E> From<Result<T, E>> for ResponseCode {
+        fn from(value: Result<T, E>) -> Self {
+            ResponseCode {
+                code: match value {
+                    Ok(_) => response_code::Code::Ok,
+                    Err(_) => response_code::Code::Error,
+                }
+                .into(),
+            }
+        }
+    }
 }
 
 static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);

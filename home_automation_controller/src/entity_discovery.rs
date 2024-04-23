@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use home_automation_common::{
-    protobuf::{entity_discovery_command, response_code, EntityDiscoveryCommand, ResponseCode},
+    protobuf::{entity_discovery_command, EntityDiscoveryCommand, ResponseCode},
     shutdown_requested,
     zmq_sockets::{self, markers::Linked},
 };
@@ -29,46 +29,56 @@ impl<'a> EntityDiscoveryTask<'a> {
 
     #[tracing::instrument(skip(self), err)]
     fn accept_entity(&self) -> anyhow::Result<()> {
-        use dashmap::mapref::entry::Entry;
-        use entity_discovery_command::Command;
-        use response_code::Code;
         let (request, ip): (EntityDiscoveryCommand, _) = self.server.receive_with_ip()?;
 
-        let response_code = match request.command {
-            Some(Command::Register(r)) => {
+        let result = self.handle_command(request, ip);
+        tracing::info!(?result, "Finished handling command with result {result:?}");
+
+        let response: ResponseCode = result.into();
+        self.server.send(response)?;
+
+        Ok(())
+    }
+
+    #[tracing::instrument(skip(self), err)]
+    fn handle_command(&self, request: EntityDiscoveryCommand, ip: String) -> anyhow::Result<()> {
+        use dashmap::mapref::entry::Entry;
+        use entity_discovery_command::Command;
+        match request.command {
+            Some(Command::Register(registration)) => {
                 match self.app_state.entities.entry(request.entity_name) {
                     Entry::Occupied(o) => {
-                        tracing::error!("Entity {} already registered", o.key());
-                        Code::Error
+                        anyhow::bail!("Entity {} already registered", o.key());
                     }
                     Entry::Vacant(v) => {
                         tracing::info!("Registering entity {}", v.key());
-                        match self.open_back_channel(ip, r.port) {
-                            Ok(req) => {
-                                v.insert(Entity::new(req));
-                                Code::Ok
-                            }
-                            Err(e) => {
-                                tracing::error!(error=%e, "Failed to create back-channel: {e:#}");
-                                Code::Error
-                            }
-                        }
+                        let requester = self
+                            .open_back_channel(ip, registration.port)
+                            .context("Failed to create back-channel")?;
+                        v.insert(Entity::new(requester));
                     }
                 }
             }
             Some(Command::Unregister(())) => {
-                todo!()
+                self.app_state
+                    .entities
+                    .remove(&request.entity_name)
+                    .with_context(|| {
+                        anyhow::anyhow!("Failed to remove unknown entity {}", request.entity_name)
+                    })?;
             }
             Some(Command::Heartbeat(())) => {
-                todo!()
+                let mut entity = self
+                    .app_state
+                    .entities
+                    .get_mut(&request.entity_name)
+                    .with_context(|| {
+                        anyhow::anyhow!("Heartbeat from unknown entity {}", request.entity_name)
+                    })?;
+                entity.last_heartbeat_pulse = std::time::Instant::now();
             }
             None => anyhow::bail!("EntityDiscoveryCommand is missing the command"),
-        };
-
-        let response = ResponseCode {
-            code: response_code.into(),
-        };
-        self.server.send(response)?;
+        }
         Ok(())
     }
 
