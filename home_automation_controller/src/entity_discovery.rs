@@ -19,7 +19,7 @@ impl<'a> EntityDiscoveryTask<'a> {
         Ok(Self { app_state, server })
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(name = "entity discovery", skip(self))]
     pub fn run(&self) -> anyhow::Result<()> {
         while !shutdown_requested() {
             let _ = self.accept_entity();

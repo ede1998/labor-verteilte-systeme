@@ -19,8 +19,9 @@ impl<'a> ClientApiTask<'a> {
         Ok(Self { app_state, server })
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(name = "Client Api", skip(self))]
     pub fn run(&self) -> anyhow::Result<()> {
+        tracing::info!("Starting Client API.");
         self.handle_client()?;
         return Ok(());
         while !shutdown_requested() {
@@ -43,6 +44,8 @@ impl<'a> ClientApiTask<'a> {
             std::thread::sleep(std::time::Duration::from_millis(1000));
         };
 
+        tracing::info!("sending request via back-channel");
+
         let response = ResponseCode {
             code: Code::Ok.into(),
         };
@@ -54,16 +57,5 @@ impl<'a> ClientApiTask<'a> {
 
         // self.server.send(response)?;
         Ok(())
-    }
-
-    fn open_back_channel(
-        &self,
-        ip: String,
-        port: u32,
-    ) -> anyhow::Result<zmq_sockets::Requester<Linked>> {
-        zmq_sockets::Requester::new(&self.app_state.context)
-            .context("Failed to create back-channel socket")?
-            .connect(&format!("tcp://{ip}:{port}"))
-            .context("Failed to connect back-channel socket")
     }
 }
