@@ -40,7 +40,6 @@ let
 in
 pkgs.mkShell {
   packages = [
-    pkgs.nixfmt-rfc-style
     pkgs.protobuf
     (pkgs.rust-bin.beta.latest.default.override {
       extensions = [
