@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::{sync::atomic::{AtomicBool, Ordering}, time::Duration};
 
 use anyhow::Context;
 use bytes::Bytes;
@@ -35,6 +35,16 @@ pub mod protobuf {
         }
     }
 }
+
+pub const ENV_DISCOVERY_ENDPOINT: &str = "HOME_AUTOMATION_DISCOVERY_ENDPOINT";
+pub const ENV_ENTITY_DATA_ENDPOINT: &str = "HOME_AUTOMATION_ENTITY_DATA_ENDPOINT";
+pub const ENV_CLIENT_API_ENDPOINT: &str = "HOME_AUTOMATION_CLIENT_API_ENDPOINT";
+
+pub fn load_env(var: &str) -> anyhow::Result<String> {
+    std::env::var(var).with_context(|| anyhow::anyhow!("Failed to read env var {var}"))
+}
+
+pub const HEARTBEAT_FREQUENCY: Duration = Duration::from_secs(10);
 
 static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);
 
