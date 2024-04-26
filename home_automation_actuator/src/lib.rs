@@ -12,11 +12,17 @@ use home_automation_common::{
     HEARTBEAT_FREQUENCY,
 };
 
-struct App {
+pub struct Sockets {
+    pub publisher: zmq_sockets::Publisher<Linked>,
+    pub replier: zmq_sockets::Replier<Linked>,
+    pub heartbeat: zmq_sockets::Requester<Linked>,
+}
+
+pub struct App {
     context: zmq_sockets::Context,
     data_endpoint: String,
     discovery_endpoint: String,
-    name: String,
+    pub name: String,
     data: RwLock<ActuatorState>,
     refresh_rate: Duration,
 }
@@ -24,13 +30,33 @@ struct App {
 impl App {
     pub fn new() -> Result<Self> {
         let actuator_name = std::env::args().nth(1).context("Missing actuator name.")?;
+        let context = zmq_sockets::Context::new();
+        home_automation_common::install_signal_handler(context.clone())?;
         Ok(Self {
-            context: zmq_sockets::Context::new(),
+            context,
             data_endpoint: load_env(home_automation_common::ENV_ENTITY_DATA_ENDPOINT)?,
             discovery_endpoint: load_env(home_automation_common::ENV_DISCOVERY_ENDPOINT)?,
             name: format!("act_{actuator_name}"),
             data: RwLock::new(ActuatorState { state: None }),
             refresh_rate: Duration::from_millis(1500),
+        })
+    }
+
+    pub fn run(&self, sockets: Sockets) -> Result<()> {
+        std::thread::scope(|s| {
+            let publisher = s.spawn(move || self.run_publish_data(sockets.publisher));
+            let updater = s.spawn(move || self.run_updater(sockets.replier));
+
+            self.run_heartbeat(sockets.heartbeat)?;
+            publisher
+                .join()
+                .map_err(|e| anyhow::anyhow!("Publisher task panicked: {e:?}"))?
+                .context("Publisher task failed")?;
+            updater
+                .join()
+                .map_err(|e| anyhow::anyhow!("Updater task panicked: {e:?}"))?
+                .context("Updater task failed")?;
+            Ok(())
         })
     }
 
@@ -43,7 +69,11 @@ impl App {
     }
 
     #[tracing::instrument(skip(self))]
-    fn connect(&self, update_port: u16) -> Result<zmq_sockets::Requester<Linked>> {
+    pub fn connect(&self) -> Result<Sockets> {
+        let replier = zmq_sockets::Replier::new(&self.context)?.bind("tcp://*:*")?;
+        let update_port = replier.get_last_endpoint()?.port();
+        let publisher = zmq_sockets::Publisher::new(&self.context)?.connect(&self.data_endpoint)?;
+
         let requester =
             zmq_sockets::Requester::new(&self.context)?.connect(&self.discovery_endpoint)?;
 
@@ -57,13 +87,17 @@ impl App {
         let response_code: ResponseCode = requester.receive()?;
         tracing::debug!("Received {response_code:?}");
 
-        Ok(requester)
+        Ok(Sockets {
+            publisher,
+            replier,
+            heartbeat: requester,
+        })
     }
 
-    fn run_heartbeat(&self, requester: &zmq_sockets::Requester<Linked>) -> Result<()> {
+    pub fn run_heartbeat(&self, requester: zmq_sockets::Requester<Linked>) -> Result<()> {
         loop {
             std::thread::sleep(HEARTBEAT_FREQUENCY);
-            self.heartbeat(requester)
+            self.heartbeat(&requester)
                 .inspect_err(|_| home_automation_common::request_shutdown())?;
         }
     }
@@ -81,7 +115,7 @@ impl App {
         }
     }
 
-    fn run_publish_data(&self, publisher: zmq_sockets::Publisher<Linked>) -> Result<()> {
+    pub fn run_publish_data(&self, publisher: zmq_sockets::Publisher<Linked>) -> Result<()> {
         let mut error_counter = 0;
         loop {
             match self.publish_data(&publisher) {
@@ -115,37 +149,4 @@ impl App {
     fn update(&self, updater: &zmq_sockets::Replier<Linked>) -> Result<()> {
         Ok(())
     }
-}
-
-fn main() -> anyhow::Result<()> {
-    let app = App::new()?;
-    let _config = home_automation_common::OpenTelemetryConfiguration::new(&app.name)?;
-    home_automation_common::install_signal_handler(app.context.clone())?;
-
-    let update_replier = zmq_sockets::Replier::new(&app.context)?.bind("tcp://*:*")?;
-    let update_endpoint = update_replier.get_last_endpoint()?;
-    let publisher = zmq_sockets::Publisher::new(&app.context)?.connect(&app.data_endpoint)?;
-
-    let heartbeat_socket = app.connect(update_endpoint.port())?;
-    std::thread::scope(|s| {
-        let publisher = s.spawn({
-            let app = &app;
-            move || app.run_publish_data(publisher)
-        });
-        let updater = s.spawn({
-            let app = &app;
-            move || app.run_updater(update_replier)
-        });
-
-        app.run_heartbeat(&heartbeat_socket)?;
-        publisher
-            .join()
-            .map_err(|e| anyhow::anyhow!("Publisher task panicked: {e:?}"))?
-            .context("Publisher task failed")?;
-        updater
-            .join()
-            .map_err(|e| anyhow::anyhow!("Updater task panicked: {e:?}"))?
-            .context("Updater task failed")?;
-        Ok(())
-    })
 }
