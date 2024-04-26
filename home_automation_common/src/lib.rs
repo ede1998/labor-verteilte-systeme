@@ -1,4 +1,7 @@
-use std::{sync::atomic::{AtomicBool, Ordering}, time::Duration};
+use std::{
+    sync::atomic::{AtomicBool, Ordering},
+    time::Duration,
+};
 
 use anyhow::Context;
 use bytes::Bytes;
@@ -46,6 +49,14 @@ pub fn load_env(var: &str) -> anyhow::Result<String> {
 
 pub const HEARTBEAT_FREQUENCY: Duration = Duration::from_secs(10);
 
+pub fn actuator_state_topic(name: &str) -> String {
+    format!("/actuator_state/{name}")
+}
+
+pub fn sensor_measurement_topic(name: &str) -> String {
+    format!("/measurement/{name}")
+}
+
 static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);
 
 #[inline]
@@ -53,10 +64,15 @@ pub fn shutdown_requested() -> bool {
     SHUTDOWN_REQUESTED.load(Ordering::SeqCst)
 }
 
+#[inline]
+pub fn request_shutdown() {
+    SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
+}
+
 pub fn install_signal_handler(mut context: zmq_sockets::Context) -> anyhow::Result<()> {
     ctrlc::set_handler(move || {
         tracing::info!("Shutdown signal received");
-        SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
+        request_shutdown();
         context.destroy().expect("Failed to destroy context");
     })
     .context("Failed to install signal handler")
