@@ -2,15 +2,27 @@ use std::{sync::RwLock, time::Duration};
 
 use anyhow::{Context as _, Result};
 use home_automation_common::{
-    actuator_state_topic, load_env,
+    load_env,
     protobuf::{
         entity_discovery_command::{Command, EntityType, Registration},
         response_code::Code,
-        ActuatorState, EntityDiscoveryCommand, ResponseCode,
+        EntityDiscoveryCommand, ResponseCode,
     },
     zmq_sockets::{self, markers::Linked},
     HEARTBEAT_FREQUENCY,
 };
+
+pub trait Entity {
+    fn create_name(base_name: &str) -> String;
+    type PublishData: Send + Sync + Clone + prost::Message + prost::Name + Default + std::fmt::Debug;
+    type UpdateData: prost::Message + prost::Name + Default;
+    fn create_initial_data() -> Self::PublishData;
+    fn handle_incoming_data(this: &App<Self>, data: Self::UpdateData) -> Result<()>
+    where
+        Self: Sized;
+    fn topic_name(base_name: &str) -> String;
+    const ENTITY_TYPE: EntityType;
+}
 
 pub struct Sockets {
     pub publisher: zmq_sockets::Publisher<Linked>,
@@ -18,27 +30,27 @@ pub struct Sockets {
     pub heartbeat: zmq_sockets::Requester<Linked>,
 }
 
-pub struct App {
+pub struct App<E: Entity> {
     context: zmq_sockets::Context,
     data_endpoint: String,
     discovery_endpoint: String,
     pub name: String,
-    data: RwLock<ActuatorState>,
-    refresh_rate: Duration,
+    pub data: RwLock<E::PublishData>,
+    pub refresh_rate: RwLock<Duration>,
 }
 
-impl App {
+impl<E: Entity> App<E> {
     pub fn new() -> Result<Self> {
-        let actuator_name = std::env::args().nth(1).context("Missing actuator name.")?;
+        let name = std::env::args().nth(1).context("Missing name.")?;
         let context = zmq_sockets::Context::new();
         home_automation_common::install_signal_handler(context.clone())?;
         Ok(Self {
             context,
             data_endpoint: load_env(home_automation_common::ENV_ENTITY_DATA_ENDPOINT)?,
             discovery_endpoint: load_env(home_automation_common::ENV_DISCOVERY_ENDPOINT)?,
-            name: format!("act_{actuator_name}"),
-            data: RwLock::new(ActuatorState { state: None }),
-            refresh_rate: Duration::from_millis(1500),
+            name: E::create_name(&name),
+            data: RwLock::new(E::create_initial_data()),
+            refresh_rate: RwLock::new(Duration::from_millis(1500)),
         })
     }
 
@@ -60,11 +72,13 @@ impl App {
         })
     }
 
+    // TODO: disconnect request on stop
+
     fn discovery_command(&self, command: Command) -> EntityDiscoveryCommand {
         EntityDiscoveryCommand {
             command: Some(command),
             entity_name: self.name.clone(),
-            entity_type: EntityType::Actuator.into(),
+            entity_type: E::ENTITY_TYPE.into(),
         }
     }
 
@@ -128,7 +142,7 @@ impl App {
                     error_counter = 0;
                 }
             }
-            std::thread::sleep(self.refresh_rate);
+            std::thread::sleep(*self.refresh_rate.read().expect("non-poisoned RwLock"));
         }
     }
 
@@ -137,16 +151,29 @@ impl App {
     fn publish_data(&self, publisher: &zmq_sockets::Publisher<Linked>) -> Result<()> {
         let data = self.data.read().expect("non-poisoned RwLock").clone();
         publisher
-            .send(actuator_state_topic(&self.name), data)
+            .send(E::topic_name(&self.name), data)
             .context("Failed to publish data")
     }
 
     fn run_updater(&self, updater: zmq_sockets::Replier<Linked>) -> Result<()> {
-        todo!()
+        while !home_automation_common::shutdown_requested() {
+            self.update(&updater)?;
+        }
+        Ok(())
     }
 
+    /// Read an incoming configuration update and apply it to the entity.
     #[tracing::instrument(parent=None, skip_all)]
     fn update(&self, updater: &zmq_sockets::Replier<Linked>) -> Result<()> {
-        Ok(())
+        let data: E::UpdateData = updater
+            .receive()
+            .context("Failed to receive config update")?;
+        let result = E::handle_incoming_data(self, data)
+            .inspect_err(
+                |e| tracing::error!(error=%e, "Failed to apply configuration update: {e:#}"),
+            )
+            .inspect(|_| tracing::info!("Successfully applied configuration update"));
+        let code: ResponseCode = result.into();
+        updater.send(code)
     }
 }
