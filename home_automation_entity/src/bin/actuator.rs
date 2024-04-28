@@ -1,7 +1,6 @@
 use std::{str::FromStr, sync::RwLock, time::Duration};
 
 use anyhow::{Context as _, Result};
-use home_automation_actuator::{App, Entity};
 use home_automation_common::{
     actuator_state_topic,
     protobuf::{
@@ -10,6 +9,7 @@ use home_automation_common::{
         LightActuatorState, NamedEntityState,
     },
 };
+use home_automation_entity::{App, Entity};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ActuatorKind {
@@ -119,7 +119,8 @@ impl Entity for Actuator {
     type PublishData = ActuatorState;
 
     fn retrieve_publish_data(&self) -> Self::PublishData {
-        todo!()
+        let state = self.data.read().expect("non-poisoned RwLock").clone();
+        ActuatorState { state: Some(state) }
     }
 
     fn handle_incoming_data(&self, data: NamedEntityState) -> Result<Option<Duration>> {

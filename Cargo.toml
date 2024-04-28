@@ -4,8 +4,7 @@ members = [
     "exercises/client_server",
     "exercises/publisher_subscriber",
     "home_automation_common",
-    "home_automation_sensor",
-    "home_automation_actuator",
+    "home_automation_entity",
     "home_automation_controller",
     "home_automation_client",
 ]

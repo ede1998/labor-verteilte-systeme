@@ -1,7 +1,0 @@
-[package]
-name = "home_automation_sensor"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-home_automation_common.workspace = true

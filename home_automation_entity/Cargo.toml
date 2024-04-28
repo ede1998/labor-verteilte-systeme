@@ -1,5 +1,5 @@
 [package]
-name = "home_automation_actuator"
+name = "home_automation_entity"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,4 +7,5 @@ edition = "2021"
 anyhow.workspace = true
 home_automation_common.workspace = true
 prost.workspace = true
+rand = "0.8.5"
 tracing.workspace = true
