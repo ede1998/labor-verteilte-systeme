@@ -6,22 +6,24 @@ use home_automation_common::{
     protobuf::{
         entity_discovery_command::{Command, EntityType, Registration},
         response_code::Code,
-        EntityDiscoveryCommand, ResponseCode,
+        EntityDiscoveryCommand, NamedEntityState, ResponseCode,
     },
     zmq_sockets::{self, markers::Linked},
     HEARTBEAT_FREQUENCY,
 };
 
-pub trait Entity {
-    fn create_name(base_name: &str) -> String;
-    type PublishData: Send + Sync + Clone + prost::Message + prost::Name + Default + std::fmt::Debug;
-    type UpdateData: prost::Message + prost::Name + Default;
-    fn create_initial_data() -> Self::PublishData;
-    fn handle_incoming_data(this: &App<Self>, data: Self::UpdateData) -> Result<()>
+pub trait Entity: Sync {
+    const ENTITY_TYPE: EntityType;
+
+    fn new(base_name: String) -> Result<Self>
     where
         Self: Sized;
-    fn topic_name(base_name: &str) -> String;
-    const ENTITY_TYPE: EntityType;
+    fn name(&self) -> &str;
+    fn topic_name(&self) -> &str;
+
+    type PublishData: Send + Sync + Clone + prost::Message + prost::Name + Default + std::fmt::Debug;
+    fn retrieve_publish_data(&self) -> Self::PublishData;
+    fn handle_incoming_data(&self, data: NamedEntityState) -> Result<Option<Duration>>;
 }
 
 pub struct Sockets {
@@ -34,8 +36,7 @@ pub struct App<E: Entity> {
     context: zmq_sockets::Context,
     data_endpoint: String,
     discovery_endpoint: String,
-    pub name: String,
-    pub data: RwLock<E::PublishData>,
+    pub entity: E,
     pub refresh_rate: RwLock<Duration>,
 }
 
@@ -48,8 +49,7 @@ impl<E: Entity> App<E> {
             context,
             data_endpoint: load_env(home_automation_common::ENV_ENTITY_DATA_ENDPOINT)?,
             discovery_endpoint: load_env(home_automation_common::ENV_DISCOVERY_ENDPOINT)?,
-            name: E::create_name(&name),
-            data: RwLock::new(E::create_initial_data()),
+            entity: E::new(name).context("Failed to create entity")?,
             refresh_rate: RwLock::new(Duration::from_millis(1500)),
         })
     }
@@ -77,7 +77,7 @@ impl<E: Entity> App<E> {
     fn discovery_command(&self, command: Command) -> EntityDiscoveryCommand {
         EntityDiscoveryCommand {
             command: Some(command),
-            entity_name: self.name.clone(),
+            entity_name: self.entity.name().to_owned(),
             entity_type: E::ENTITY_TYPE.into(),
         }
     }
@@ -149,9 +149,9 @@ impl<E: Entity> App<E> {
     /// Publishes a single sample.
     #[tracing::instrument(parent=None, skip_all)]
     fn publish_data(&self, publisher: &zmq_sockets::Publisher<Linked>) -> Result<()> {
-        let data = self.data.read().expect("non-poisoned RwLock").clone();
+        let data = self.entity.retrieve_publish_data();
         publisher
-            .send(E::topic_name(&self.name), data)
+            .send(self.entity.topic_name(), data)
             .context("Failed to publish data")
     }
 
@@ -165,14 +165,23 @@ impl<E: Entity> App<E> {
     /// Read an incoming configuration update and apply it to the entity.
     #[tracing::instrument(parent=None, skip_all)]
     fn update(&self, updater: &zmq_sockets::Replier<Linked>) -> Result<()> {
-        let data: E::UpdateData = updater
+        let data: NamedEntityState = updater
             .receive()
             .context("Failed to receive config update")?;
-        let result = E::handle_incoming_data(self, data)
-            .inspect_err(
-                |e| tracing::error!(error=%e, "Failed to apply configuration update: {e:#}"),
-            )
-            .inspect(|_| tracing::info!("Successfully applied configuration update"));
+
+        let result = self.entity.handle_incoming_data(data);
+
+        match &result {
+            Err(e) => tracing::error!(error=%e, "Failed to apply configuration update: {e:#}"),
+            Ok(None) => {
+                tracing::info!("Successfully applied configuration update without new refresh rate")
+            }
+            &Ok(Some(new_refresh_rate)) => {
+                *self.refresh_rate.write().expect("non-poisoned RwLock") = new_refresh_rate;
+                tracing::info!("Successfully applied configuration update with new refresh rate {new_refresh_rate:?}");
+            }
+        }
+
         let code: ResponseCode = result.into();
         updater.send(code)
     }
