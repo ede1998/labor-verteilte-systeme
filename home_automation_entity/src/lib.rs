@@ -72,8 +72,6 @@ impl<E: Entity> App<E> {
         })
     }
 
-    // TODO: disconnect request on stop
-
     fn discovery_command(&self, command: Command) -> EntityDiscoveryCommand {
         EntityDiscoveryCommand {
             command: Some(command),
@@ -109,6 +107,29 @@ impl<E: Entity> App<E> {
     }
 
     pub fn run_heartbeat(&self, requester: zmq_sockets::Requester<Linked>) -> Result<()> {
+        struct Dropper<'a> {
+            requester: &'a zmq_sockets::Requester<Linked>,
+            request: EntityDiscoveryCommand,
+        }
+        impl Drop for Dropper<'_> {
+            fn drop(&mut self) {
+                let request = self.request.clone();
+                tracing::info!("Sending disconnect request {request:?}");
+                if let Err(e) = self.requester.send(request) {
+                    tracing::error!("Failed to send disconnect request: {e:#}");
+                }
+
+                match self.requester.receive::<ResponseCode>() {
+                    Ok(response_code) => tracing::debug!("Received {response_code:?}"),
+                    Err(e) => tracing::error!("Failed to receive disconnect response: {e:#}"),
+                }
+            }
+        }
+
+        let _dropper = Dropper {
+            requester: &requester,
+            request: self.discovery_command(Command::Unregister(())),
+        };
         loop {
             std::thread::sleep(HEARTBEAT_FREQUENCY);
             self.heartbeat(&requester)
