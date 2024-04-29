@@ -37,6 +37,22 @@ pub mod protobuf {
             }
         }
     }
+
+    impl From<SensorMeasurement> for PublishData {
+        fn from(m: SensorMeasurement) -> Self {
+            PublishData {
+                value: Some(publish_data::Value::Measurement(m)),
+            }
+        }
+    }
+
+    impl From<ActuatorState> for PublishData {
+        fn from(m: ActuatorState) -> Self {
+            PublishData {
+                value: Some(publish_data::Value::ActuatorState(m)),
+            }
+        }
+    }
 }
 
 pub const ENV_DISCOVERY_ENDPOINT: &str = "HOME_AUTOMATION_DISCOVERY_ENDPOINT";
@@ -49,10 +65,23 @@ pub fn load_env(var: &str) -> anyhow::Result<String> {
 
 pub const HEARTBEAT_FREQUENCY: Duration = Duration::from_secs(10);
 
+pub fn actuator_name(topic: &str) -> anyhow::Result<String> {
+    Ok(topic
+        .strip_prefix("/actuator_state/")
+        .with_context(|| anyhow::anyhow!("Failed to parse topic {topic} as actuator topic"))?
+        .to_owned())
+}
+
 pub fn actuator_state_topic(name: &str) -> String {
     format!("/actuator_state/{name}")
 }
 
+pub fn sensor_name(topic: &str) -> anyhow::Result<String> {
+    Ok(topic
+        .strip_prefix("/measurement/")
+        .with_context(|| anyhow::anyhow!("Failed to parse topic {topic} as sensor topic"))?
+        .to_owned())
+}
 pub fn sensor_measurement_topic(name: &str) -> String {
     format!("/measurement/{name}")
 }

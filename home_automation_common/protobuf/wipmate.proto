@@ -43,6 +43,13 @@ message HumiditySensorMeasurement { float humidity = 1; }
 
 message SensorConfiguration { float update_frequency_hz = 1; }
 
+message PublishData {
+  oneof value {
+    SensorMeasurement measurement = 1;
+    ActuatorState actuator_state = 2;
+  }
+}
+
 message ResponseCode {
   enum Code {
     OK = 0;

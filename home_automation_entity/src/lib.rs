@@ -6,7 +6,7 @@ use home_automation_common::{
     protobuf::{
         entity_discovery_command::{Command, EntityType, Registration},
         response_code::Code,
-        EntityDiscoveryCommand, NamedEntityState, ResponseCode,
+        EntityDiscoveryCommand, NamedEntityState, PublishData, ResponseCode,
     },
     zmq_sockets::{self, markers::Linked},
     HEARTBEAT_FREQUENCY,
@@ -21,8 +21,7 @@ pub trait Entity: Sync {
     fn name(&self) -> &str;
     fn topic_name(&self) -> &str;
 
-    type PublishData: Send + Sync + Clone + prost::Message + prost::Name + Default + std::fmt::Debug;
-    fn retrieve_publish_data(&self) -> Self::PublishData;
+    fn retrieve_publish_data(&self) -> PublishData;
     fn handle_incoming_data(&self, data: NamedEntityState) -> Result<Option<Duration>>;
 }
 

@@ -1,5 +1,6 @@
 use anyhow::Context as _;
 use home_automation_common::{
+    load_env,
     protobuf::{entity_discovery_command, response_code, ResponseCode},
     shutdown_requested,
     zmq_sockets::{self, markers::Linked},
@@ -14,8 +15,8 @@ pub struct ClientApiTask<'a> {
 
 impl<'a> ClientApiTask<'a> {
     pub fn new(app_state: &'a AppState) -> anyhow::Result<Self> {
-        let address = "tcp://*:5558";
-        let server = zmq_sockets::Replier::new(&app_state.context)?.bind(address)?;
+        let address = load_env(home_automation_common::ENV_CLIENT_API_ENDPOINT)?;
+        let server = zmq_sockets::Replier::new(&app_state.context)?.bind(&address)?;
         Ok(Self { app_state, server })
     }
 

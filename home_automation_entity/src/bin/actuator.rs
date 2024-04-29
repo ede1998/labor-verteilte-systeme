@@ -6,7 +6,7 @@ use home_automation_common::{
     protobuf::{
         actuator_state::State, entity_discovery_command::EntityType,
         named_entity_state::State as NState, ActuatorState, AirConditioningActuatorState,
-        LightActuatorState, NamedEntityState,
+        LightActuatorState, NamedEntityState, PublishData,
     },
 };
 use home_automation_entity::{App, Entity};
@@ -116,11 +116,9 @@ impl Entity for Actuator {
         &self.topic
     }
 
-    type PublishData = ActuatorState;
-
-    fn retrieve_publish_data(&self) -> Self::PublishData {
+    fn retrieve_publish_data(&self) -> PublishData {
         let state = self.data.read().expect("non-poisoned RwLock").clone();
-        ActuatorState { state: Some(state) }
+        ActuatorState { state: Some(state) }.into()
     }
 
     fn handle_incoming_data(&self, data: NamedEntityState) -> Result<Option<Duration>> {

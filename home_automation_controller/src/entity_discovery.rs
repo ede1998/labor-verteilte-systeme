@@ -1,5 +1,6 @@
 use anyhow::Context as _;
 use home_automation_common::{
+    load_env,
     protobuf::{entity_discovery_command, EntityDiscoveryCommand, ResponseCode},
     shutdown_requested,
     zmq_sockets::{self, markers::Linked},
@@ -14,8 +15,8 @@ pub struct EntityDiscoveryTask<'a> {
 
 impl<'a> EntityDiscoveryTask<'a> {
     pub fn new(app_state: &'a AppState) -> anyhow::Result<Self> {
-        let address = "tcp://*:5556";
-        let server = zmq_sockets::Replier::new(&app_state.context)?.bind(address)?;
+        let address = load_env(home_automation_common::ENV_DISCOVERY_ENDPOINT)?;
+        let server = zmq_sockets::Replier::new(&app_state.context)?.bind(&address)?;
         Ok(Self { app_state, server })
     }
 
@@ -60,12 +61,7 @@ impl<'a> EntityDiscoveryTask<'a> {
                 }
             }
             Some(Command::Unregister(())) => {
-                self.app_state
-                    .entities
-                    .remove(&request.entity_name)
-                    .with_context(|| {
-                        anyhow::anyhow!("Failed to remove unknown entity {}", request.entity_name)
-                    })?;
+                self.app_state.unregister(&request.entity_name)?;
             }
             Some(Command::Heartbeat(())) => {
                 let mut entity = self

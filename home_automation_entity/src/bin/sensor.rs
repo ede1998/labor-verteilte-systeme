@@ -4,8 +4,8 @@ use anyhow::{Context as _, Result};
 use home_automation_common::{
     protobuf::{
         entity_discovery_command::EntityType, named_entity_state::State as NState,
-        sensor_measurement::Value, HumiditySensorMeasurement, NamedEntityState, SensorMeasurement,
-        TemperatureSensorMeasurement,
+        sensor_measurement::Value, HumiditySensorMeasurement, NamedEntityState, PublishData,
+        SensorMeasurement, TemperatureSensorMeasurement,
     },
     sensor_measurement_topic,
 };
@@ -115,10 +115,8 @@ impl Entity for Sensor {
         &self.topic
     }
 
-    type PublishData = SensorMeasurement;
-
-    fn retrieve_publish_data(&self) -> Self::PublishData {
-        self.data_kind.random()
+    fn retrieve_publish_data(&self) -> PublishData {
+        self.data_kind.random().into()
     }
 
     fn handle_incoming_data(&self, data: NamedEntityState) -> Result<Option<Duration>> {
