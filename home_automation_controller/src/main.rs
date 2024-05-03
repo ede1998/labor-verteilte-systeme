@@ -16,7 +16,7 @@ fn main() -> anyhow::Result<()> {
     // TODO: use tx to queue new subscription/unsubscriptions, also check with last pulse task for heartbeat
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::scope(|s| {
-        let discovery = s.spawn(|| EntityDiscoveryTask::new(&app_state)?.run());
+        let discovery = s.spawn(|| EntityDiscoveryTask::new(&app_state, tx)?.run());
         let client_api = s.spawn(|| ClientApiTask::new(&app_state)?.run());
         let subscriber = s.spawn(|| SubscriberTask::new(&app_state)?.run(rx));
 

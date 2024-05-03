@@ -6,6 +6,7 @@ use std::{
 use anyhow::Context;
 use bytes::Bytes;
 use opentelemetry_http::{HttpError, Request, Response};
+use protobuf::entity_discovery_command::EntityType;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 pub trait AnyhowExt<T> {
@@ -84,6 +85,13 @@ pub fn sensor_name(topic: &str) -> anyhow::Result<String> {
 }
 pub fn sensor_measurement_topic(name: &str) -> String {
     format!("/measurement/{name}")
+}
+
+pub fn entity_topic(name: &str, entity_type: EntityType) -> String {
+    match entity_type {
+        EntityType::Actuator => actuator_state_topic(name),
+        EntityType::Sensor => sensor_measurement_topic(name),
+    }
 }
 
 static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);

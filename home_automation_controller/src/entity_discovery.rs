@@ -1,23 +1,36 @@
+use std::sync::mpsc::Sender;
+
 use anyhow::Context as _;
 use home_automation_common::{
     load_env,
-    protobuf::{entity_discovery_command, EntityDiscoveryCommand, ResponseCode},
+    protobuf::{
+        entity_discovery_command::{self, EntityType},
+        EntityDiscoveryCommand, ResponseCode,
+    },
     shutdown_requested,
     zmq_sockets::{self, markers::Linked},
 };
 
-use crate::state::{AppState, Entity};
+use crate::state::{AppState, Entity, SubscriptionCommand};
 
 pub struct EntityDiscoveryTask<'a> {
     app_state: &'a AppState,
     server: zmq_sockets::Replier<Linked>,
+    new_subscriptions: Sender<SubscriptionCommand>,
 }
 
 impl<'a> EntityDiscoveryTask<'a> {
-    pub fn new(app_state: &'a AppState) -> anyhow::Result<Self> {
+    pub fn new(
+        app_state: &'a AppState,
+        new_subscriptions: Sender<SubscriptionCommand>,
+    ) -> anyhow::Result<Self> {
         let address = load_env(home_automation_common::ENV_DISCOVERY_ENDPOINT)?;
         let server = zmq_sockets::Replier::new(&app_state.context)?.bind(&address)?;
-        Ok(Self { app_state, server })
+        Ok(Self {
+            app_state,
+            server,
+            new_subscriptions,
+        })
     }
 
     #[tracing::instrument(name = "entity discovery", skip(self))]
@@ -45,9 +58,10 @@ impl<'a> EntityDiscoveryTask<'a> {
     fn handle_command(&self, request: EntityDiscoveryCommand, ip: String) -> anyhow::Result<()> {
         use dashmap::mapref::entry::Entry;
         use entity_discovery_command::Command;
+        let entity_type = request.entity_type();
         match request.command {
             Some(Command::Register(registration)) => {
-                match self.app_state.entities.entry(request.entity_name) {
+                match self.app_state.entities.entry(request.entity_name.clone()) {
                     Entry::Occupied(o) => {
                         anyhow::bail!("Entity {} already registered", o.key());
                     }
@@ -56,11 +70,18 @@ impl<'a> EntityDiscoveryTask<'a> {
                         let requester = self
                             .open_back_channel(ip, registration.port)
                             .context("Failed to create back-channel")?;
+                        self.new_subscriptions.send(SubscriptionCommand::subscribe(
+                            home_automation_common::entity_topic(&request.entity_name, entity_type),
+                        ))?;
                         v.insert(Entity::new(requester));
                     }
                 }
             }
             Some(Command::Unregister(())) => {
+                self.new_subscriptions
+                    .send(SubscriptionCommand::unsubscribe(
+                        home_automation_common::entity_topic(&request.entity_name, entity_type),
+                    ))?;
                 self.app_state.unregister(&request.entity_name)?;
             }
             Some(Command::Heartbeat(())) => {
