@@ -9,6 +9,7 @@ use home_automation_common::{
     protobuf::{publish_data, PublishData},
     shutdown_requested,
     zmq_sockets::{self, markers::Linked},
+    AnyhowZmq,
 };
 
 use crate::state::{Action, AppState, SubscriptionCommand};
@@ -46,20 +47,33 @@ impl<'a> SubscriberTask<'a> {
                         }
                     };
                     if let Err(e) = result {
-                        tracing::error!("Failed to update subscription: {e:#}");
+                        if !e.is_zmq_termination() {
+                            tracing::error!("Failed to update subscription: {e:#}");
+                        }
                     }
                 }
             });
 
             while !shutdown_requested() {
-                let _ = self.handle_client();
+                self.handle_client();
             }
         });
         Ok(())
     }
 
-    #[tracing::instrument(skip(self), err)]
-    fn handle_client(&self) -> anyhow::Result<()> {
+    #[tracing::instrument(skip(self))]
+    fn handle_client(&self) {
+        let result = self.inner_handle_client();
+        if let Err(e) = result {
+            if !e.is_zmq_termination() {
+                tracing::error!("Failed handle client publication: {e:#}");
+            } else {
+                tracing::info!("Cannot handle client publication because shutdown is in progress.");
+            }
+        }
+    }
+
+    fn inner_handle_client(&self) -> anyhow::Result<()> {
         let subscriber = self.subscriber.lock().expect("non-poisoned Mutex");
         let (topic, payload): (String, PublishData) = subscriber.receive()?;
 

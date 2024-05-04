@@ -52,7 +52,7 @@ pub mod protobuf {
 
     impl From<SensorMeasurement> for PublishData {
         fn from(m: SensorMeasurement) -> Self {
-            PublishData {
+            Self {
                 value: Some(publish_data::Value::Measurement(m)),
             }
         }
@@ -60,8 +60,46 @@ pub mod protobuf {
 
     impl From<ActuatorState> for PublishData {
         fn from(m: ActuatorState) -> Self {
-            PublishData {
+            Self {
                 value: Some(publish_data::Value::ActuatorState(m)),
+            }
+        }
+    }
+
+    impl ActuatorState {
+        pub fn light(brightness: f32) -> Self {
+            Self {
+                state: Some(actuator_state::State::Light(LightActuatorState {
+                    brightness,
+                })),
+            }
+        }
+
+        pub fn air_conditioning(on: bool) -> Self {
+            Self {
+                state: Some(actuator_state::State::AirConditioning(
+                    AirConditioningActuatorState { on },
+                )),
+            }
+        }
+    }
+
+    impl NamedEntityState {
+        pub fn actuator(entity_name: String, value: ActuatorState) -> Self {
+            Self {
+                entity_name,
+                state: Some(named_entity_state::State::ActuatorState(value)),
+            }
+        }
+
+        pub fn sensor(entity_name: String, update_frequency_hz: f32) -> Self {
+            Self {
+                entity_name,
+                state: Some(named_entity_state::State::SensorConfiguration(
+                    SensorConfiguration {
+                        update_frequency_hz,
+                    },
+                )),
             }
         }
     }

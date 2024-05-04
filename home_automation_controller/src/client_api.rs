@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use home_automation_common::{
     load_env,
-    protobuf::{entity_discovery_command, response_code, ResponseCode},
+    protobuf::{entity_discovery_command, response_code, NamedEntityState, ResponseCode},
     shutdown_requested,
     zmq_sockets::{self, markers::Linked},
 };
@@ -35,7 +35,7 @@ impl<'a> ClientApiTask<'a> {
     fn handle_client(&self) -> anyhow::Result<()> {
         use dashmap::mapref::entry::Entry;
         use entity_discovery_command::Command;
-        use response_code::Code;
+        use home_automation_common::protobuf::{ActuatorState, NamedEntityState};
         // let request: ClientApiCommand = self.server.receive()?;
 
         let entity = loop {
@@ -47,9 +47,9 @@ impl<'a> ClientApiTask<'a> {
 
         tracing::info!("sending request via back-channel");
 
-        let response = ResponseCode {
-            code: Code::Ok.into(),
-        };
+        let response =
+            NamedEntityState::actuator(entity.key().to_owned(), ActuatorState::light(88.0));
+
         entity
             .connection
             .lock()

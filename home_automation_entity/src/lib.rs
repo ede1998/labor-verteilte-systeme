@@ -112,6 +112,7 @@ impl<E: Entity> App<E> {
         }
         impl Drop for Dropper<'_> {
             fn drop(&mut self) {
+                // TODO: context is already closed here -> always just fails
                 let request = self.request.clone();
                 tracing::info!("Sending disconnect request {request:?}");
                 if let Err(e) = self.requester.send(request) {
