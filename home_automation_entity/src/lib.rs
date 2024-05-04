@@ -1,4 +1,7 @@
-use std::{sync::RwLock, time::Duration};
+use std::{
+    sync::RwLock,
+    time::{Duration, Instant},
+};
 
 use anyhow::{Context as _, Result};
 use home_automation_common::{
@@ -130,11 +133,17 @@ impl<E: Entity> App<E> {
             requester: &requester,
             request: self.discovery_command(Command::Unregister(())),
         };
-        loop {
-            std::thread::sleep(HEARTBEAT_FREQUENCY);
-            self.heartbeat(&requester)
-                .inspect_err(|_| home_automation_common::request_shutdown())?;
+
+        let mut last = Instant::now();
+        while !home_automation_common::shutdown_requested() {
+            std::thread::sleep(Duration::from_millis(100));
+            if last.elapsed() >= HEARTBEAT_FREQUENCY {
+                self.heartbeat(&requester)
+                    .inspect_err(|_| home_automation_common::request_shutdown())?;
+                last = Instant::now();
+            }
         }
+        Ok(())
     }
 
     /// Sends a single heartbeat and waits for the answer.

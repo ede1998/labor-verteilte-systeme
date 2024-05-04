@@ -3,10 +3,7 @@ use std::sync::mpsc::Sender;
 use anyhow::Context as _;
 use home_automation_common::{
     load_env,
-    protobuf::{
-        entity_discovery_command::{self, EntityType},
-        EntityDiscoveryCommand, ResponseCode,
-    },
+    protobuf::{entity_discovery_command, EntityDiscoveryCommand, ResponseCode},
     shutdown_requested,
     zmq_sockets::{self, markers::Linked},
 };
