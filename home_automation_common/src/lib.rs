@@ -22,6 +22,17 @@ where
     }
 }
 
+pub trait AnyhowZmq {
+    fn is_zmq_termination(&self) -> bool;
+}
+
+impl AnyhowZmq for anyhow::Error {
+    fn is_zmq_termination(&self) -> bool {
+        self.downcast_ref()
+            .is_some_and(|e: &zmq::Error| matches!(e, zmq::Error::ETERM))
+    }
+}
+
 pub mod zmq_sockets;
 
 pub mod protobuf {

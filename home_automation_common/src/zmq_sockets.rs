@@ -4,7 +4,7 @@ use anyhow::{anyhow, Context as _, Result};
 
 pub use zmq::Error;
 
-use crate::AnyhowExt;
+use crate::{AnyhowExt, AnyhowZmq};
 
 /// Handle for a ØMQ context, used to create sockets.
 ///
@@ -212,8 +212,9 @@ impl Requester<markers::Linked> {
     where
         M: prost::Message + prost::Name + std::fmt::Debug,
     {
-        self.tracing_send(message)
-            .inspect_err(|e| tracing::error!(error=%e, "Failed to send message: {e:#}"))
+        let result = self.tracing_send(message);
+        trace_result(&result, Direction::Send);
+        result
     }
 
     /// Block until a message is received with the REQ-REP pattern.
@@ -222,22 +223,22 @@ impl Requester<markers::Linked> {
     where
         M: prost::Message + prost::Name + Default,
     {
-        self.tracing_receive()
-            .map(|(m, _)| m)
-            .inspect_err(|e| tracing::error!(error=%e, "Failed to receive message: {e:#}"))
-            .inspect(|m| tracing::info!(return=?m, "Received message: {m:?}"))
+        let result = self.tracing_receive().map(|(m, _)| m);
+        trace_result(&result, Direction::Receive);
+        result
     }
 }
 
 impl Replier<markers::Linked> {
     /// Send a message with the REQ-REP pattern.
-    #[tracing::instrument(skip(self), err)]
+    #[tracing::instrument(skip(self))]
     pub fn send<M>(&self, message: M) -> Result<()>
     where
         M: prost::Message + prost::Name + std::fmt::Debug,
     {
-        self.tracing_send(message)
-            .inspect_err(|e| tracing::error!(error=%e, "Failed to send message: {e:#}"))
+        let result = self.tracing_send(message);
+        trace_result(&result, Direction::Send);
+        result
     }
 
     /// Block until a message is received with the REQ-REP pattern.
@@ -246,12 +247,10 @@ impl Replier<markers::Linked> {
     where
         M: prost::Message + prost::Name + Default,
     {
-        let result = self.tracing_receive();
+        let result = self.tracing_receive().map(|(m, _)| m);
         let _span = tracing::info_span!(stringify!(receive)).entered();
+        trace_result(&result, Direction::Receive);
         result
-            .map(|(m, _)| m)
-            .inspect_err(|e| tracing::error!(error=%e, "Failed to receive message: {e:#}"))
-            .inspect(|m| tracing::info!(return=?m, "Received message: {m:?}"))
     }
     /// Block until a message is received with the REQ-REP pattern.
     // no tracing::instrument here to avoid cycles in span tree
@@ -261,9 +260,36 @@ impl Replier<markers::Linked> {
     {
         let result = self.tracing_receive();
         let _span = tracing::info_span!(stringify!(receive)).entered();
+        trace_result(&result, Direction::Receive);
         result
-            .inspect_err(|e| tracing::error!(error=%e, "Failed to receive message: {e:#}"))
-            .inspect(|m| tracing::info!(return=?m, "Received message: {m:?}"))
+    }
+}
+
+enum Direction {
+    Send,
+    Receive,
+}
+
+fn trace_result<T: std::fmt::Debug>(result: &Result<T>, direction: Direction) {
+    match (direction, result) {
+        (Direction::Receive, Err(e)) if e.is_zmq_termination() => {
+            tracing::info!(error=%e, "Failed to receive message: {e:#}");
+        }
+        (Direction::Receive, Err(e)) => {
+            tracing::error!(error=%e, "Failed to receive message: {e:#}");
+        }
+        (Direction::Receive, Ok(m)) => {
+            tracing::info!(return=?m, "Received message: {m:?}");
+        }
+        (Direction::Send, Err(e)) if e.is_zmq_termination() => {
+            tracing::info!(error=%e, "Failed to send message: {e:#}");
+        }
+        (Direction::Send, Err(e)) => {
+            tracing::error!(error=%e, "Failed to send message: {e:#}");
+        }
+        (Direction::Send, Ok(_)) => {
+            tracing::info!("Successfully sent message");
+        }
     }
 }
 

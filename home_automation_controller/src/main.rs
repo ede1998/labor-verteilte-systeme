@@ -13,7 +13,7 @@ fn main() -> anyhow::Result<()> {
     let _config = home_automation_common::OpenTelemetryConfiguration::new("controller")?;
     let app_state = AppState::default();
     home_automation_common::install_signal_handler(app_state.context.clone())?;
-    // TODO: use tx to queue new subscription/unsubscriptions, also check with last pulse task for heartbeat
+    // TODO: check with last pulse task for heartbeat and unsubscribe if too long no info
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::scope(|s| {
         let discovery = s.spawn(|| EntityDiscoveryTask::new(&app_state, tx)?.run());

@@ -9,7 +9,7 @@ use home_automation_common::{
         EntityDiscoveryCommand, NamedEntityState, PublishData, ResponseCode,
     },
     zmq_sockets::{self, markers::Linked},
-    HEARTBEAT_FREQUENCY,
+    AnyhowZmq, HEARTBEAT_FREQUENCY,
 };
 
 pub trait Entity: Sync {
@@ -79,7 +79,7 @@ impl<E: Entity> App<E> {
         }
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(parent=None, skip(self))]
     pub fn connect(&self) -> Result<Sockets> {
         let replier = zmq_sockets::Replier::new(&self.context)?.bind("tcp://*:*")?;
         let update_port = replier.get_last_endpoint()?.port();
@@ -153,6 +153,7 @@ impl<E: Entity> App<E> {
         let mut error_counter = 0;
         loop {
             match self.publish_data(&publisher) {
+                Err(e) if e.is_zmq_termination() => return Ok(()),
                 Err(e) if error_counter > 3 => return Err(e),
                 Err(e) => {
                     tracing::error!(error=%e, "Failed to publish data: {e:#}");
