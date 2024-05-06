@@ -81,7 +81,7 @@ impl<'a> SubscriberTask<'a> {
             let mut entry = self.app_state.entities.get_mut(&name).with_context(|| {
                 anyhow::anyhow!("Payload {state:?} received for unknown entity {name}")
             })?;
-            entry.state = Some(state);
+            entry.state = state;
             Ok(())
         };
 

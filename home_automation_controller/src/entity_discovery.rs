@@ -75,7 +75,7 @@ impl<'a> EntityDiscoveryTask<'a> {
                         self.new_subscriptions.send(SubscriptionCommand::subscribe(
                             home_automation_common::entity_topic(&request.entity_name, entity_type),
                         ))?;
-                        v.insert(Entity::new(requester));
+                        v.insert(Entity::new(requester, entity_type));
                     }
                 }
             }

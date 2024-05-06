@@ -55,6 +55,7 @@ message ResponseCode {
     OK = 0;
     ERROR = 1;
   }
+  // TODO add error message
   Code code = 1;
 }
 
@@ -84,6 +85,8 @@ message SystemStateQuery {}
 message SystemState {
   map<string, SensorMeasurement> sensors = 1;
   map<string, ActuatorState> actuators = 2;
+  repeated string new_sensors = 3;
+  repeated string new_actuators = 4;
 }
 
 // - the client can __request__ the system to set an actuator target value or
@@ -94,6 +97,13 @@ message NamedEntityState {
   oneof state {
     SensorConfiguration sensor_configuration = 2;
     ActuatorState actuator_state = 3;
+  }
+}
+
+message ClientApiCommand {
+  oneof command_type {
+    SystemStateQuery query = 1;
+    NamedEntityState action = 2;
   }
 }
 
