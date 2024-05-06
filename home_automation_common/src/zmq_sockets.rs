@@ -158,12 +158,15 @@ impl Publisher<markers::Linked> {
             .with_context(|| {
                 let topic = String::from_utf8_lossy(topic.as_ref());
                 format!("Failed to send message {message:?} on topic {topic}")
-            })?;
+            })
+            .trace(Direction::Send)?;
 
-        self.tracing_send(message).with_context(|| {
-            let topic = String::from_utf8_lossy(topic.as_ref());
-            format!("Failed to send on topic {topic}")
-        })
+        self.tracing_send(message)
+            .with_context(|| {
+                let topic = String::from_utf8_lossy(topic.as_ref());
+                format!("Failed to send on topic {topic}")
+            })
+            .trace(Direction::Send)
     }
 }
 
@@ -179,9 +182,13 @@ impl Subscriber<markers::Linked> {
             .recv_msg(0)
             .erase_err()
             .and_then(|msg| std::str::from_utf8(&msg).map(ToOwned::to_owned).erase_err())
-            .context("Failed to receive topic")?;
+            .context("Failed to receive topic")
+            .trace(Direction::Receive)?;
 
-        let payload = self.tracing_receive()?;
+        let payload = self
+            .tracing_receive()
+            .context("Failed to receive payload")
+            .trace(Direction::Receive)?;
 
         Ok((topic, payload.0))
     }
@@ -212,9 +219,7 @@ impl Requester<markers::Linked> {
     where
         M: prost::Message + prost::Name + std::fmt::Debug,
     {
-        let result = self.tracing_send(message);
-        trace_result(&result, Direction::Send);
-        result
+        self.tracing_send(message).trace(Direction::Send)
     }
 
     /// Block until a message is received with the REQ-REP pattern.
@@ -223,9 +228,9 @@ impl Requester<markers::Linked> {
     where
         M: prost::Message + prost::Name + Default,
     {
-        let result = self.tracing_receive().map(|(m, _)| m);
-        trace_result(&result, Direction::Receive);
-        result
+        self.tracing_receive()
+            .map(|(m, _)| m)
+            .trace(Direction::Receive)
     }
 }
 
@@ -236,9 +241,7 @@ impl Replier<markers::Linked> {
     where
         M: prost::Message + prost::Name + std::fmt::Debug,
     {
-        let result = self.tracing_send(message);
-        trace_result(&result, Direction::Send);
-        result
+        self.tracing_send(message).trace(Direction::Send)
     }
 
     /// Block until a message is received with the REQ-REP pattern.
@@ -249,9 +252,9 @@ impl Replier<markers::Linked> {
     {
         let result = self.tracing_receive().map(|(m, _)| m);
         let _span = tracing::info_span!(stringify!(receive)).entered();
-        trace_result(&result, Direction::Receive);
-        result
+        result.trace(Direction::Receive)
     }
+
     /// Block until a message is received with the REQ-REP pattern.
     // no tracing::instrument here to avoid cycles in span tree
     pub fn receive_with_ip<M>(&self) -> Result<(M, String)>
@@ -260,8 +263,15 @@ impl Replier<markers::Linked> {
     {
         let result = self.tracing_receive();
         let _span = tracing::info_span!(stringify!(receive)).entered();
-        trace_result(&result, Direction::Receive);
-        result
+        result.trace(Direction::Receive)
+    }
+}
+
+pub fn termination_is_ok(error: anyhow::Error) -> anyhow::Result<()> {
+    if error.is_zmq_termination() {
+        Ok(())
+    } else {
+        Err(error)
     }
 }
 
@@ -270,26 +280,33 @@ enum Direction {
     Receive,
 }
 
-fn trace_result<T: std::fmt::Debug>(result: &Result<T>, direction: Direction) {
-    match (direction, result) {
-        (Direction::Receive, Err(e)) if e.is_zmq_termination() => {
-            tracing::info!(error=%e, "Failed to receive message: {e:#}");
+trait Trace {
+    fn trace(self, direction: Direction) -> Self;
+}
+
+impl<T: std::fmt::Debug> Trace for Result<T> {
+    fn trace(self, direction: Direction) -> Self {
+        match (direction, &self) {
+            (Direction::Receive, Err(e)) if e.is_zmq_termination() => {
+                tracing::info!(error=%e, "Failed to receive message: {e:#}");
+            }
+            (Direction::Receive, Err(e)) => {
+                tracing::error!(error=%e, "Failed to receive message: {e:#}");
+            }
+            (Direction::Receive, Ok(m)) => {
+                tracing::info!(return=?m, "Received message: {m:?}");
+            }
+            (Direction::Send, Err(e)) if e.is_zmq_termination() => {
+                tracing::info!(error=%e, "Failed to send message: {e:#}");
+            }
+            (Direction::Send, Err(e)) => {
+                tracing::error!(error=%e, "Failed to send message: {e:#}");
+            }
+            (Direction::Send, Ok(_)) => {
+                tracing::info!("Successfully sent message");
+            }
         }
-        (Direction::Receive, Err(e)) => {
-            tracing::error!(error=%e, "Failed to receive message: {e:#}");
-        }
-        (Direction::Receive, Ok(m)) => {
-            tracing::info!(return=?m, "Received message: {m:?}");
-        }
-        (Direction::Send, Err(e)) if e.is_zmq_termination() => {
-            tracing::info!(error=%e, "Failed to send message: {e:#}");
-        }
-        (Direction::Send, Err(e)) => {
-            tracing::error!(error=%e, "Failed to send message: {e:#}");
-        }
-        (Direction::Send, Ok(_)) => {
-            tracing::info!("Successfully sent message");
-        }
+        self
     }
 }
 
@@ -299,7 +316,7 @@ where
 {
     /// Receives a message envelope and its contained message of the given type.
     /// Based on the envelope information, the span id is correlated to the remote
-    /// span for tracing.
+    /// span for tracing. The second return value is the endpoint the message was received from.
     fn tracing_receive<M>(&self) -> Result<(M, String)>
     where
         M: prost::Message + prost::Name + Default,

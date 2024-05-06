@@ -5,7 +5,7 @@ use home_automation_common::{
     load_env,
     protobuf::{entity_discovery_command, EntityDiscoveryCommand, ResponseCode},
     shutdown_requested,
-    zmq_sockets::{self, markers::Linked},
+    zmq_sockets::{self, markers::Linked, termination_is_ok},
 };
 
 use crate::state::{AppState, Entity, SubscriptionCommand};
@@ -33,12 +33,17 @@ impl<'a> EntityDiscoveryTask<'a> {
     #[tracing::instrument(name = "entity discovery", skip(self))]
     pub fn run(&self) -> anyhow::Result<()> {
         while !shutdown_requested() {
-            let _ = self.accept_entity();
+            let Err(e) = self.accept_entity() else {
+                continue;
+            };
+            return Err(e)
+                .or_else(termination_is_ok)
+                .inspect_err(|e| tracing::error!(%e, "Failed to to handle entity request: {e:#}"));
         }
         Ok(())
     }
 
-    #[tracing::instrument(skip(self), err)]
+    #[tracing::instrument(skip(self))]
     fn accept_entity(&self) -> anyhow::Result<()> {
         let (request, ip): (EntityDiscoveryCommand, _) = self.server.receive_with_ip()?;
 
@@ -51,7 +56,7 @@ impl<'a> EntityDiscoveryTask<'a> {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self), err)]
+    #[tracing::instrument(skip(self))]
     fn handle_command(&self, request: EntityDiscoveryCommand, ip: String) -> anyhow::Result<()> {
         use dashmap::mapref::entry::Entry;
         use entity_discovery_command::Command;

@@ -11,7 +11,7 @@ use home_automation_common::{
         response_code::Code,
         EntityDiscoveryCommand, NamedEntityState, PublishData, ResponseCode,
     },
-    zmq_sockets::{self, markers::Linked},
+    zmq_sockets::{self, markers::Linked, termination_is_ok},
     AnyhowZmq, HEARTBEAT_FREQUENCY,
 };
 
@@ -115,6 +115,7 @@ impl<E: Entity> App<E> {
         }
         impl Drop for Dropper<'_> {
             fn drop(&mut self) {
+                let _span = tracing::info_span!("unregister").entered();
                 // TODO: context is already closed here -> always just fails
                 let request = self.request.clone();
                 tracing::info!("Sending disconnect request {request:?}");
@@ -138,8 +139,11 @@ impl<E: Entity> App<E> {
         while !home_automation_common::shutdown_requested() {
             std::thread::sleep(Duration::from_millis(100));
             if last.elapsed() >= HEARTBEAT_FREQUENCY {
-                self.heartbeat(&requester)
-                    .inspect_err(|_| home_automation_common::request_shutdown())?;
+                if let Err(e) = self.heartbeat(&requester) {
+                    return Err(e).or_else(termination_is_ok).inspect_err(|_| {
+                        home_automation_common::request_shutdown();
+                    });
+                }
                 last = Instant::now();
             }
         }
@@ -188,7 +192,10 @@ impl<E: Entity> App<E> {
 
     fn run_updater(&self, updater: zmq_sockets::Replier<Linked>) -> Result<()> {
         while !home_automation_common::shutdown_requested() {
-            self.update(&updater)?;
+            let Err(e) = self.update(&updater) else {
+                continue;
+            };
+            return Err(e).or_else(termination_is_ok);
         }
         Ok(())
     }
