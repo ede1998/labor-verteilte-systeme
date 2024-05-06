@@ -110,28 +110,35 @@ impl<E: Entity> App<E> {
 
     pub fn run_heartbeat(&self, requester: zmq_sockets::Requester<Linked>) -> Result<()> {
         struct Dropper<'a> {
-            requester: &'a zmq_sockets::Requester<Linked>,
+            endpoint: &'a str,
             request: EntityDiscoveryCommand,
         }
         impl Drop for Dropper<'_> {
             fn drop(&mut self) {
-                let _span = tracing::info_span!("unregister").entered();
-                // TODO: context is already closed here -> always just fails
-                let request = self.request.clone();
-                tracing::info!("Sending disconnect request {request:?}");
-                if let Err(e) = self.requester.send(request) {
-                    tracing::error!("Failed to send disconnect request: {e:#}");
-                }
+                let inner = || -> anyhow::Result<()> {
+                    let _span = tracing::info_span!("disconnect").entered();
 
-                match self.requester.receive::<ResponseCode>() {
-                    Ok(response_code) => tracing::debug!("Received {response_code:?}"),
-                    Err(e) => tracing::error!("Failed to receive disconnect response: {e:#}"),
+                    // Ugly workaround
+                    tracing::debug!("Recreating context and requester socket because the one used everywhere else is already closed.");
+                    let context = zmq_sockets::Context::new();
+                    let requester =
+                        zmq_sockets::Requester::new(&context)?.connect(self.endpoint)?;
+                    let request = self.request.clone();
+                    tracing::info!("Sending disconnect request {request:?}");
+                    requester.send(request)?;
+                    tracing::info!("Requested disconnection successfully.");
+                    requester.receive::<ResponseCode>()?;
+                    tracing::info!("Successfully disconnected.");
+                    Ok(())
+                };
+                if let Err(error) = inner() {
+                    tracing::error!(%error, "Failed to properly disconnect: {error:#}");
                 }
             }
         }
 
         let _dropper = Dropper {
-            requester: &requester,
+            endpoint: &self.discovery_endpoint,
             request: self.discovery_command(Command::Unregister(())),
         };
 

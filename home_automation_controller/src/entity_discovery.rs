@@ -63,6 +63,7 @@ impl<'a> EntityDiscoveryTask<'a> {
         let entity_type = request.entity_type();
         match request.command {
             Some(Command::Register(registration)) => {
+                tracing::info!("Trying to register entity {}", request.entity_name);
                 match self.app_state.entities.entry(request.entity_name.clone()) {
                     Entry::Occupied(o) => {
                         anyhow::bail!("Entity {} already registered", o.key());
@@ -80,6 +81,10 @@ impl<'a> EntityDiscoveryTask<'a> {
                 }
             }
             Some(Command::Unregister(())) => {
+                tracing::info!(
+                    "Unregistering entity {} because of disconnect request",
+                    request.entity_name
+                );
                 self.new_subscriptions
                     .send(SubscriptionCommand::unsubscribe(
                         home_automation_common::entity_topic(&request.entity_name, entity_type),
@@ -94,6 +99,10 @@ impl<'a> EntityDiscoveryTask<'a> {
                     .with_context(|| {
                         anyhow::anyhow!("Heartbeat from unknown entity {}", request.entity_name)
                     })?;
+                tracing::info!(
+                    "Updating timestamp of entity {} because of heartbeat reception",
+                    request.entity_name
+                );
                 entity.last_heartbeat_pulse = std::time::Instant::now();
             }
             None => anyhow::bail!("EntityDiscoveryCommand is missing the command"),
