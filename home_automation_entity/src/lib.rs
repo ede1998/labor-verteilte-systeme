@@ -144,6 +144,7 @@ impl<E: Entity> App<E> {
 
         let mut last = Instant::now();
         while !home_automation_common::shutdown_requested() {
+            // TODO: use park/unpark of this thread
             std::thread::sleep(Duration::from_millis(100));
             if last.elapsed() >= HEARTBEAT_FREQUENCY {
                 if let Err(e) = self.heartbeat(&requester) {

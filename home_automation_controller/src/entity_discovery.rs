@@ -32,6 +32,7 @@ impl<'a> EntityDiscoveryTask<'a> {
 
     #[tracing::instrument(name = "entity discovery", skip(self))]
     pub fn run(&self) -> anyhow::Result<()> {
+        tracing::info!("Starting entity discovery task");
         while !shutdown_requested() {
             let Err(e) = self.accept_entity() else {
                 continue;

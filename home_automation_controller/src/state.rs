@@ -46,6 +46,16 @@ pub enum EntityState {
     New(EntityType),
 }
 
+impl EntityState {
+    pub fn entity_type(&self) -> EntityType {
+        match self {
+            Self::Sensor(_) => EntityType::Sensor,
+            Self::Actuator(_) => EntityType::Actuator,
+            Self::New(t) => *t,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum Action {
     Subscribe,
