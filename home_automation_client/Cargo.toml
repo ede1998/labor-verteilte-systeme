@@ -5,5 +5,7 @@ edition = "2021"
 
 [dependencies]
 anyhow.workspace = true
+crossterm = "0.27.0"
 home_automation_common.workspace = true
+ratatui = "0.26.2"
 tracing.workspace = true
