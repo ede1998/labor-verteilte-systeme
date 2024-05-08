@@ -215,7 +215,7 @@ impl<'a> MonitorView<'a> {
             " Auto-Refresh ".into(),
             "<CTRL-R>".blue().bold(),
             " Quit ".into(),
-            "<Q> ".blue().bold(),
+            "<ESC> ".blue().bold(),
         ]));
         let block = prepare_scaffolding(instructions);
 
@@ -227,11 +227,11 @@ impl<'a> MonitorView<'a> {
         match event {
             Event::Key(KeyEvent {
                 code: KeyCode::Char('s'),
+                kind: KeyEventKind::Press,
                 ..
             }) => Some(Action::ChangeView(todo!())),
             Event::Key(KeyEvent {
-                code: KeyCode::Char('q'),
-                ..
+                code: KeyCode::Esc, ..
             }) => Some(Action::Exit),
             Event::Key(KeyEvent {
                 code: KeyCode::Char('r'),
