@@ -25,6 +25,7 @@ use ratatui::{
     },
     Frame, Terminal,
 };
+use tui_textarea::TextArea;
 
 type Tui = Terminal<CrosstermBackend<std::io::Stdout>>;
 
@@ -32,21 +33,42 @@ type Tui = Terminal<CrosstermBackend<std::io::Stdout>>;
 fn init_raw_tty() -> Result<Tui> {
     terminal::enable_raw_mode().context("Failed to get stdout")?;
     let mut stdout = std::io::stdout();
-    crossterm::execute!(&mut stdout, terminal::EnterAlternateScreen)
-        .context("Failed to enter alternate screen")?;
+    crossterm::execute!(
+        &mut stdout,
+        terminal::EnterAlternateScreen,
+        event::EnableMouseCapture
+    )
+    .context("Failed to enter alternate screen")?;
     Terminal::new(CrosstermBackend::new(stdout)).context("Failed to create terminal")
 }
 
 /// Restore the terminal to its original state
 fn restore_normal_tty() -> Result<()> {
-    crossterm::execute!(std::io::stdout(), terminal::LeaveAlternateScreen)
-        .context("Failed to leave alternate screen")?;
+    crossterm::execute!(
+        std::io::stdout(),
+        terminal::LeaveAlternateScreen,
+        event::DisableMouseCapture
+    )
+    .context("Failed to leave alternate screen")?;
     terminal::disable_raw_mode().context("Failed to disable raw_mode")
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct App {
     counter: u8,
+    input: TextArea<'static>,
+}
+
+impl Default for App {
+    fn default() -> Self {
+        let mut input = TextArea::default();
+        input.set_cursor_line_style(ratatui::style::Style::default());
+        input.set_placeholder_text("Please enter my text here");
+        Self {
+            counter: Default::default(),
+            input,
+        }
+    }
 }
 
 impl App {
@@ -66,25 +88,37 @@ impl App {
     /// updates the application's state based on user input
     fn handle_events(&mut self) -> Result<()> {
         match event::read()? {
-            // it's important to check that the event is a key press event as
-            // crossterm also emits key release and repeat events on Windows.
-            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => self
-                .handle_key_event(key_event)
-                .with_context(|| anyhow::anyhow!("handling key event failed:\n{key_event:#?}")),
-            _ => Ok(()),
-        }
-    }
-
-    fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
-        match key_event.code {
-            KeyCode::Char('q') => {
-                home_automation_common::request_shutdown();
+            Event::Key(KeyEvent {
+                code: code @ (KeyCode::Char('q') | KeyCode::Left | KeyCode::Right),
+                kind,
+                ..
+            }) => {
+                if kind != KeyEventKind::Press {
+                    return Ok(());
+                }
+                match code {
+                    KeyCode::Char('q') => {
+                        home_automation_common::request_shutdown();
+                    }
+                    KeyCode::Left => self
+                        .decrement_counter()
+                        .context("Failed to decrement counter")?,
+                    KeyCode::Right => self
+                        .increment_counter()
+                        .context("Failed to increment counter")?,
+                    _ => {}
+                }
+                Ok(())
             }
-            KeyCode::Left => self.decrement_counter()?,
-            KeyCode::Right => self.increment_counter()?,
-            _ => {}
+            Event::Key(KeyEvent {
+                code: KeyCode::Enter,
+                ..
+            }) => Ok(()),
+            event => {
+                self.input.input(event);
+                Ok(())
+            }
         }
-        Ok(())
     }
 
     fn decrement_counter(&mut self) -> Result<()> {
@@ -125,10 +159,16 @@ impl Widget for &App {
             self.counter.to_string().yellow(),
         ])]);
 
+        use ratatui::layout::{Constraint, Layout};
+        let layout =
+            Layout::default().constraints([Constraint::Length(3), Constraint::Min(1)].as_slice());
+        let chunks = layout.split(area);
         Paragraph::new(counter_text)
             .centered()
             .block(block)
-            .render(area, buf);
+            .render(chunks[1], buf);
+
+        self.input.widget().render(chunks[0], buf);
     }
 }
 
