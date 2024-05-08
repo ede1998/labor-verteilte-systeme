@@ -65,6 +65,11 @@ fn prepare_scaffolding(instructions: Title) -> Block {
         .border_set(border::THICK)
 }
 
+trait UiView {
+    fn handle_events(&self, event: event::Event) -> Option<Action>;
+    fn render(&mut self, frame: &mut Frame);
+}
+
 #[derive(Debug, Default, Clone)]
 enum View {
     #[default]
@@ -81,6 +86,39 @@ impl View {
         let mut input = TextArea::default();
         input.set_cursor_line_style(Default::default());
         Self::Send { input, list }
+    }
+
+    fn active<'a>(&'a mut self, state: &'a HashMap<String, EntityState>) -> impl UiView + 'a {
+        macro_rules! all_views {
+            ($($view:ident),+) => {
+                enum Views<'b> {
+                    $($view($view<'b>),)+
+                }
+                impl<'b> UiView for Views<'b> {
+                    fn handle_events(&self, event: event::Event) -> Option<Action> {
+                        match self {
+                            $(Self::$view(v) => v.handle_events(event),)+
+                        }
+                    }
+
+                    fn render(&mut self, frame: &mut Frame) {
+                        match self {
+                            $(Self::$view(v) => v.render(frame),)+
+                        }
+                    }
+                }
+            };
+        }
+        all_views!(MonitorView, SendView);
+
+        match self {
+            Self::Monitor => Views::MonitorView(MonitorView(state)),
+            Self::Send { input, list } => Views::SendView(SendView {
+                state,
+                entity_input: input,
+                list,
+            }),
+        }
     }
 }
 
@@ -116,21 +154,13 @@ impl App {
     }
 
     fn render_frame(&mut self, frame: &mut Frame) {
-        match &mut self.view {
-            View::Monitor => MonitorView(&self.state).render(frame),
-            View::Send { input, list } => SendView::new(&self.state, input, list).render(frame),
-        }
+        self.view.active(&self.state).render(frame)
     }
 
     /// updates the application's state based on user input
     fn handle_events(&mut self) -> Result<()> {
         let event = event::read().context("Failed to read input event")?;
-        let action = match &mut self.view {
-            View::Monitor => MonitorView(&self.state).handle_events(event),
-            View::Send { input, list } => {
-                SendView::new(&self.state, input, list).handle_events(event)
-            }
-        };
+        let action = self.view.active(&self.state).handle_events(event);
         match action {
             Some(Action::Exit) => home_automation_common::request_shutdown(),
             Some(Action::ChangeView(v)) => self.view = v,
@@ -205,8 +235,10 @@ impl<'a> MonitorView<'a> {
 
         frame.render_widget(table, area);
     }
+}
 
-    fn render(&self, frame: &mut Frame) {
+impl<'a> UiView for MonitorView<'a> {
+    fn render(&mut self, frame: &mut Frame) {
         let instructions = Title::from(Line::from(vec![
             " Send Message ".into(),
             "<S>".blue().bold(),
@@ -257,18 +289,6 @@ struct SendView<'a> {
 }
 
 impl<'a> SendView<'a> {
-    fn new(
-        state: &'a HashMap<String, EntityState>,
-        entity_input: &'a TextArea,
-        list: &'a mut ListState,
-    ) -> Self {
-        Self {
-            state,
-            entity_input,
-            list,
-        }
-    }
-
     fn render_name_select(&mut self, frame: &mut Frame, area: Rect) {
         use ratatui::{style::Modifier, text::Span, widgets::List};
         let layout = Layout::vertical([
@@ -292,7 +312,9 @@ impl<'a> SendView<'a> {
 
         frame.render_stateful_widget(list, list_area, self.list);
     }
+}
 
+impl<'a> UiView for SendView<'a> {
     fn render(&mut self, frame: &mut Frame) {
         let instructions = Title::from(Line::from(vec![
             " Accept Input".into(),
