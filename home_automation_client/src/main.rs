@@ -14,14 +14,13 @@ use home_automation_common::{
 };
 use ratatui::{
     backend::CrosstermBackend,
-    buffer::Buffer,
     layout::{Alignment, Rect},
     style::Stylize,
     symbols::border,
     text::{Line, Text},
     widgets::{
         block::{Position, Title},
-        Block, Borders, Paragraph, Widget,
+        Block, Borders, Paragraph,
     },
     Frame, Terminal,
 };
@@ -53,6 +52,44 @@ fn restore_normal_tty() -> Result<()> {
     terminal::disable_raw_mode().context("Failed to disable raw_mode")
 }
 
+struct Item {
+    user: &'static str,
+    mail: &'static str,
+    timezone: &'static str,
+}
+
+const ITEMS: [Item; 6] = [
+    Item {
+        user: "fdehau",
+        mail: "Florian Dehau <fdehau@users.noreply.github.com",
+        timezone: "UTC+1",
+    },
+    Item {
+        user: "joshka",
+        mail: "Josh McKinney <joshka@users.noreply.github.com>",
+        timezone: "UTC-8",
+    },
+    Item {
+        user: "kdheepak",
+        mail: "Dheepak Krishnamurthy <me@kdheepak.com>",
+        timezone: "UTC-5",
+    },
+    Item {
+        user: "mindoodoo",
+        mail: "Leon Sautour <minindoo@users.noreply.github.com>",
+        timezone: "UTC+1",
+    },
+    Item {
+        user: "orhun",
+        mail: "Orhun Parmaksız <orhun@archlinux.org>",
+        timezone: "UTC+3",
+    },
+    Item {
+        user: "Valentin271",
+        mail: "Valentin271 <36198422+Valentin271@users.noreply.github.com>",
+        timezone: "UTC+1",
+    },
+];
 #[derive(Debug)]
 pub struct App {
     counter: u8,
@@ -81,8 +118,68 @@ impl App {
         Ok(())
     }
 
+    fn render_table(&self, frame: &mut Frame, area: Rect) {
+        use ratatui::{
+            layout::Constraint,
+            widgets::{Row, Table},
+        };
+        let rows = ITEMS.iter().map(|item| {
+            Row::new([
+                item.user.into(),
+                item.mail.dim().into(),
+                Line::from(item.timezone).alignment(Alignment::Right),
+            ])
+        });
+        // width of 46
+        let table = Table::new(
+            rows,
+            [
+                Constraint::Length(11),
+                Constraint::Length(29),
+                Constraint::Length(5),
+            ],
+        )
+        .header(Row::new(["User", "Email", "TZ"]).bold().underlined().blue());
+        frame.render_widget(table, area);
+    }
+
+    fn render_message_counter(&self, frame: &mut Frame, area: Rect) {
+        let title = Title::from(" Counter App Tutorial ".bold());
+        let instructions = Title::from(Line::from(vec![
+            " Decrement ".into(),
+            "<Left>".blue().bold(),
+            " Increment ".into(),
+            "<Right>".blue().bold(),
+            " Quit ".into(),
+            "<Q> ".blue().bold(),
+        ]));
+        let block = Block::default()
+            .title(title.alignment(Alignment::Center))
+            .title(
+                instructions
+                    .alignment(Alignment::Center)
+                    .position(Position::Bottom),
+            )
+            .borders(Borders::ALL)
+            .border_set(border::THICK);
+
+        let counter_text = Text::from(vec![Line::from(vec![
+            "Value: ".into(),
+            self.counter.to_string().yellow(),
+        ])]);
+
+        frame.render_widget(Paragraph::new(counter_text).centered().block(block), area);
+    }
+
     fn render_frame(&self, frame: &mut Frame) {
-        frame.render_widget(self, frame.size());
+        // use ratatui::layout::{Constraint, Layout};
+        // let layout =
+        //     Layout::default().constraints([Constraint::Length(3), Constraint::Min(1)].as_slice());
+        // let chunks = layout.split(frame.size());
+
+        // frame.render_widget(self.input.widget(), chunks[0]);
+        // self.render_message_counter(frame, chunks[1]);
+        self.render_table(frame, frame.size());
     }
 
     /// updates the application's state based on user input
@@ -130,45 +227,6 @@ impl App {
         self.counter += 1;
         anyhow::ensure!(self.counter <= 2, "counter overflow");
         Ok(())
-    }
-}
-
-impl Widget for &App {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        let title = Title::from(" Counter App Tutorial ".bold());
-        let instructions = Title::from(Line::from(vec![
-            " Decrement ".into(),
-            "<Left>".blue().bold(),
-            " Increment ".into(),
-            "<Right>".blue().bold(),
-            " Quit ".into(),
-            "<Q> ".blue().bold(),
-        ]));
-        let block = Block::default()
-            .title(title.alignment(Alignment::Center))
-            .title(
-                instructions
-                    .alignment(Alignment::Center)
-                    .position(Position::Bottom),
-            )
-            .borders(Borders::ALL)
-            .border_set(border::THICK);
-
-        let counter_text = Text::from(vec![Line::from(vec![
-            "Value: ".into(),
-            self.counter.to_string().yellow(),
-        ])]);
-
-        use ratatui::layout::{Constraint, Layout};
-        let layout =
-            Layout::default().constraints([Constraint::Length(3), Constraint::Min(1)].as_slice());
-        let chunks = layout.split(area);
-        Paragraph::new(counter_text)
-            .centered()
-            .block(block)
-            .render(chunks[1], buf);
-
-        self.input.widget().render(chunks[0], buf);
     }
 }
 
