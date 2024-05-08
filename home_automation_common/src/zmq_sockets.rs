@@ -31,7 +31,7 @@ pub struct Context(zmq::Context);
 impl std::fmt::Debug for Context {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let threads = self.get_io_threads().ok();
-        f.debug_struct(stringify!(Context))
+        f.debug_struct("Context")
             .field("io_threads", &threads)
             .finish()
     }
@@ -251,7 +251,7 @@ impl Replier<markers::Linked> {
         M: prost::Message + prost::Name + Default,
     {
         let result = self.tracing_receive().map(|(m, _)| m);
-        let _span = tracing::info_span!(stringify!(receive)).entered();
+        let _span = tracing::info_span!("receive").entered();
         result.trace(Direction::Receive)
     }
 
@@ -262,7 +262,7 @@ impl Replier<markers::Linked> {
         M: prost::Message + prost::Name + Default,
     {
         let result = self.tracing_receive();
-        let _span = tracing::info_span!(stringify!(receive)).entered();
+        let _span = tracing::info_span!("receive").entered();
         result.trace(Direction::Receive)
     }
 }

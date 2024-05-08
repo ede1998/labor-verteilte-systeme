@@ -79,8 +79,8 @@ impl From<&State> for ActuatorKind {
 impl std::fmt::Display for ActuatorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            ActuatorKind::AirConditioning => f.write_str(stringify!(AirConditioning)),
-            ActuatorKind::Light => f.write_str(stringify!(Light)),
+            ActuatorKind::AirConditioning => f.write_str("AirConditioning"),
+            ActuatorKind::Light => f.write_str("Light"),
         }
     }
 }

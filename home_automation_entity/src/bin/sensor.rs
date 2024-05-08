@@ -78,8 +78,8 @@ impl FromStr for SensorKind {
 impl std::fmt::Display for SensorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            SensorKind::Humidity => f.write_str(stringify!(Humidity)),
-            SensorKind::Temperature => f.write_str(stringify!(Temperature)),
+            SensorKind::Humidity => f.write_str("Humidity"),
+            SensorKind::Temperature => f.write_str("Temperature"),
         }
     }
 }
