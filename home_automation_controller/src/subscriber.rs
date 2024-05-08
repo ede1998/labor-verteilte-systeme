@@ -9,7 +9,7 @@ use home_automation_common::{
     protobuf::{publish_data, PublishData},
     shutdown_requested,
     zmq_sockets::{self, markers::Linked},
-    AnyhowZmq,
+    AnyhowZmq, EntityState,
 };
 
 use crate::state::{Action, AppState, SubscriptionCommand};
@@ -89,11 +89,11 @@ impl<'a> SubscriberTask<'a> {
             None => anyhow::bail!("Missing payload in {payload:?} for topic {topic}"),
             Some(publish_data::Value::Measurement(m)) => {
                 let name = home_automation_common::sensor_name(&topic)?;
-                update_state(name, crate::state::EntityState::Sensor(m))?;
+                update_state(name, EntityState::Sensor(m))?;
             }
             Some(publish_data::Value::ActuatorState(s)) => {
                 let name = home_automation_common::actuator_name(&topic)?;
-                update_state(name, crate::state::EntityState::Actuator(s))?;
+                update_state(name, EntityState::Actuator(s))?;
             }
         }
         Ok(())

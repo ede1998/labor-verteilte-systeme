@@ -105,6 +105,23 @@ pub mod protobuf {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum EntityState {
+    Sensor(protobuf::SensorMeasurement),
+    Actuator(protobuf::ActuatorState),
+    New(EntityType),
+}
+
+impl EntityState {
+    pub fn entity_type(&self) -> EntityType {
+        match self {
+            Self::Sensor(_) => EntityType::Sensor,
+            Self::Actuator(_) => EntityType::Actuator,
+            Self::New(t) => *t,
+        }
+    }
+}
+
 pub const ENV_DISCOVERY_ENDPOINT: &str = "HOME_AUTOMATION_DISCOVERY_ENDPOINT";
 pub const ENV_ENTITY_DATA_ENDPOINT: &str = "HOME_AUTOMATION_ENTITY_DATA_ENDPOINT";
 pub const ENV_CLIENT_API_ENDPOINT: &str = "HOME_AUTOMATION_CLIENT_API_ENDPOINT";

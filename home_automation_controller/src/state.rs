@@ -3,8 +3,9 @@ use std::{sync::Mutex, time::Instant};
 use anyhow::{Context as _, Result};
 use dashmap::DashMap;
 use home_automation_common::{
-    protobuf::{entity_discovery_command::EntityType, ActuatorState, SensorMeasurement},
+    protobuf::entity_discovery_command::EntityType,
     zmq_sockets::{self, markers::Linked},
+    EntityState,
 };
 
 #[derive(Debug, Default)]
@@ -35,23 +36,6 @@ impl Entity {
             state: EntityState::New(entity_type),
             last_heartbeat_pulse: Instant::now(),
             connection: connection.into(),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum EntityState {
-    Sensor(SensorMeasurement),
-    Actuator(ActuatorState),
-    New(EntityType),
-}
-
-impl EntityState {
-    pub fn entity_type(&self) -> EntityType {
-        match self {
-            Self::Sensor(_) => EntityType::Sensor,
-            Self::Actuator(_) => EntityType::Actuator,
-            Self::New(t) => *t,
         }
     }
 }

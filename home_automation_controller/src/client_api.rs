@@ -64,7 +64,7 @@ impl<'a> ClientApiTask<'a> {
 
     fn handle_system_state_query(&self) -> anyhow::Result<()> {
         let system_state = {
-            use crate::state::EntityState;
+            use home_automation_common::EntityState;
             use std::collections::HashMap;
 
             let mut sensors = HashMap::new();
