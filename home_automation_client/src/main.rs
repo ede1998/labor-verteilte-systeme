@@ -14,13 +14,13 @@ use home_automation_common::{
 };
 use ratatui::{
     backend::CrosstermBackend,
-    layout::{Alignment, Rect},
+    layout::{Alignment, Constraint, Layout, Rect},
     style::Stylize,
     symbols::border,
     text::Line,
     widgets::{
         block::{Position, Title},
-        Block, Borders,
+        Block, Borders, ListState,
     },
     Frame, Terminal,
 };
@@ -65,28 +65,34 @@ fn prepare_scaffolding(instructions: Title) -> Block {
         .border_set(border::THICK)
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone)]
 enum View {
     #[default]
     Monitor,
+    Send {
+        input: TextArea<'static>,
+        list: ListState,
+    },
+}
+
+impl View {
+    fn send() -> Self {
+        let list = ListState::default();
+        let mut input = TextArea::default();
+        input.set_cursor_line_style(Default::default());
+        Self::Send { input, list }
+    }
 }
 
 #[derive(Debug)]
 pub struct App {
-    counter: u8,
-    input: TextArea<'static>,
     state: HashMap<String, EntityState>,
     view: View,
 }
 
 impl Default for App {
     fn default() -> Self {
-        let mut input = TextArea::default();
-        input.set_cursor_line_style(ratatui::style::Style::default());
-        input.set_placeholder_text("Please enter my text here");
         Self {
-            counter: Default::default(),
-            input,
             view: View::default(),
             state: HashMap::from([
                 ("Peter".to_owned(), EntityState::New(EntityType::Sensor)),
@@ -109,24 +115,21 @@ impl App {
         Ok(())
     }
 
-    fn render_frame(&self, frame: &mut Frame) {
-        // use ratatui::layout::{Constraint, Layout};
-        // let layout =
-        //     Layout::default().constraints([Constraint::Length(3), Constraint::Min(1)].as_slice());
-        // let chunks = layout.split(frame.size());
-
-        // frame.render_widget(self.input.widget(), chunks[0]);
-        // self.render_message_counter(frame, chunks[1]);
-        match self.view {
+    fn render_frame(&mut self, frame: &mut Frame) {
+        match &mut self.view {
             View::Monitor => MonitorView(&self.state).render(frame),
+            View::Send { input, list } => SendView::new(&self.state, input, list).render(frame),
         }
     }
 
     /// updates the application's state based on user input
     fn handle_events(&mut self) -> Result<()> {
         let event = event::read().context("Failed to read input event")?;
-        let action = match self.view {
+        let action = match &mut self.view {
             View::Monitor => MonitorView(&self.state).handle_events(event),
+            View::Send { input, list } => {
+                SendView::new(&self.state, input, list).handle_events(event)
+            }
         };
         match action {
             Some(Action::Exit) => home_automation_common::request_shutdown(),
@@ -150,10 +153,7 @@ struct MonitorView<'a>(&'a HashMap<String, EntityState>);
 
 impl<'a> MonitorView<'a> {
     fn render_table(&self, frame: &mut Frame, area: Rect) {
-        use ratatui::{
-            layout::Constraint,
-            widgets::{Row, Table},
-        };
+        use ratatui::widgets::{Row, Table};
 
         struct DisplayEntityState<'a>(&'a EntityState);
 
@@ -229,7 +229,7 @@ impl<'a> MonitorView<'a> {
                 code: KeyCode::Char('s'),
                 kind: KeyEventKind::Press,
                 ..
-            }) => Some(Action::ChangeView(todo!())),
+            }) => Some(Action::ChangeView(View::send())),
             Event::Key(KeyEvent {
                 code: KeyCode::Esc, ..
             }) => Some(Action::Exit),
@@ -249,6 +249,97 @@ impl<'a> MonitorView<'a> {
         }
     }
 }
+
+struct SendView<'a> {
+    state: &'a HashMap<String, EntityState>,
+    entity_input: &'a TextArea<'a>,
+    list: &'a mut ListState,
+}
+
+impl<'a> SendView<'a> {
+    fn new(
+        state: &'a HashMap<String, EntityState>,
+        entity_input: &'a TextArea,
+        list: &'a mut ListState,
+    ) -> Self {
+        Self {
+            state,
+            entity_input,
+            list,
+        }
+    }
+
+    fn render_name_select(&mut self, frame: &mut Frame, area: Rect) {
+        use ratatui::{style::Modifier, text::Span, widgets::List};
+        let layout = Layout::vertical([
+            Constraint::Min(10),
+            Constraint::Min(10),
+            Constraint::Min(10),
+        ]);
+        let [label_area, input_area, list_area] = *layout.split(area) else {
+            panic!("Failed to setup layout");
+        };
+
+        let label = Span::raw("Entity").bold().blue();
+        frame.render_widget(label, label_area);
+
+        frame.render_widget(self.entity_input.widget(), input_area);
+
+        let list = List::new(self.state.keys().map(Span::raw))
+            .block(Block::default().borders(Borders::ALL))
+            // invert color scheme for selected line
+            .highlight_style(Modifier::REVERSED);
+
+        frame.render_stateful_widget(list, list_area, self.list);
+    }
+
+    fn render(&mut self, frame: &mut Frame) {
+        let instructions = Title::from(Line::from(vec![
+            " Accept Input".into(),
+            "<ENTER>".blue().bold(),
+            " Switch focus ".into(),
+            "<TAB>".blue().bold(),
+            " Select ".into(),
+            "<UP>/<DOWN>/<LEFT>/<RIGHT>".blue().bold(),
+            " Abort ".into(),
+            "<ESC> ".blue().bold(),
+        ]));
+        let block = prepare_scaffolding(instructions)
+            .title(Title::from("Send Message".bold()).alignment(Alignment::Left));
+        frame.render_widget(&block, frame.size());
+
+        let outer_layout = Layout::vertical([Constraint::Min(10), Constraint::Min(10)]);
+        let [name_area, payload_area] = *outer_layout.split(block.inner(frame.size())) else {
+            panic!("Failed to setup layout.")
+        };
+        self.render_name_select(frame, name_area);
+    }
+
+    fn handle_events(&self, event: event::Event) -> Option<Action> {
+        match event {
+            Event::Key(KeyEvent {
+                code: KeyCode::Enter,
+                kind: KeyEventKind::Press,
+                ..
+            }) => todo!(),
+            Event::Key(KeyEvent {
+                code: KeyCode::Tab,
+                kind: KeyEventKind::Press,
+                ..
+            }) => todo!(),
+            Event::Key(KeyEvent {
+                code: KeyCode::Up | KeyCode::Down | KeyCode::Left | KeyCode::Right,
+                kind: KeyEventKind::Press,
+                ..
+            }) => todo!(),
+            Event::Key(KeyEvent {
+                code: KeyCode::Esc, ..
+            }) => Some(Action::ChangeView(View::Monitor)),
+            _ => None,
+        }
+    }
+}
+
 fn main() -> Result<()> {
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
