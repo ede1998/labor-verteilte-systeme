@@ -147,14 +147,10 @@ impl App {
     /// runs the application's main loop until the user quits
     pub fn run(&mut self, terminal: &mut Tui) -> Result<()> {
         while !home_automation_common::shutdown_requested() {
-            terminal.draw(|frame| self.render_frame(frame))?;
-            self.handle_events().context("handle events failed")?;
+            terminal.draw(|frame| self.view.active(&self.state).render(frame))?;
+            self.handle_events().context("Failed to handle events")?;
         }
         Ok(())
-    }
-
-    fn render_frame(&mut self, frame: &mut Frame) {
-        self.view.active(&self.state).render(frame)
     }
 
     /// updates the application's state based on user input
@@ -164,8 +160,8 @@ impl App {
         match action {
             Some(Action::Exit) => home_automation_common::request_shutdown(),
             Some(Action::ChangeView(v)) => self.view = v,
-            Some(Action::Refresh) => {}
-            Some(Action::ToggleAutoRefresh) => {}
+            Some(Action::Refresh) => todo!(),
+            Some(Action::ToggleAutoRefresh) => todo!(),
             None => {}
         }
         Ok(())
