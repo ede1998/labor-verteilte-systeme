@@ -103,6 +103,15 @@ pub mod protobuf {
             }
         }
     }
+
+    impl std::fmt::Display for entity_discovery_command::EntityType {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str(match self {
+                Self::Actuator => "Actuator",
+                Self::Sensor => "Sensor",
+            })
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
