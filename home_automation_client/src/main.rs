@@ -2,7 +2,7 @@ use std::{collections::HashMap, time::Duration};
 
 use anyhow::{Context as _, Result};
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
+    event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     terminal,
 };
 use home_automation_common::{
@@ -17,10 +17,10 @@ use ratatui::{
     layout::{Alignment, Rect},
     style::Stylize,
     symbols::border,
-    text::{Line, Text},
+    text::Line,
     widgets::{
         block::{Position, Title},
-        Block, Borders, Paragraph,
+        Block, Borders,
     },
     Frame, Terminal,
 };
@@ -52,11 +52,31 @@ fn restore_normal_tty() -> Result<()> {
     terminal::disable_raw_mode().context("Failed to disable raw_mode")
 }
 
+fn prepare_scaffolding(instructions: Title) -> Block {
+    let title = Title::from(" Home Automation Client ".bold());
+    Block::default()
+        .title(title.alignment(Alignment::Center))
+        .title(
+            instructions
+                .alignment(Alignment::Center)
+                .position(Position::Bottom),
+        )
+        .borders(Borders::ALL)
+        .border_set(border::THICK)
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+enum View {
+    #[default]
+    Monitor,
+}
+
 #[derive(Debug)]
 pub struct App {
     counter: u8,
     input: TextArea<'static>,
     state: HashMap<String, EntityState>,
+    view: View,
 }
 
 impl Default for App {
@@ -67,6 +87,7 @@ impl Default for App {
         Self {
             counter: Default::default(),
             input,
+            view: View::default(),
             state: HashMap::from([
                 ("Peter".to_owned(), EntityState::New(EntityType::Sensor)),
                 (
@@ -88,6 +109,46 @@ impl App {
         Ok(())
     }
 
+    fn render_frame(&self, frame: &mut Frame) {
+        // use ratatui::layout::{Constraint, Layout};
+        // let layout =
+        //     Layout::default().constraints([Constraint::Length(3), Constraint::Min(1)].as_slice());
+        // let chunks = layout.split(frame.size());
+
+        // frame.render_widget(self.input.widget(), chunks[0]);
+        // self.render_message_counter(frame, chunks[1]);
+        match self.view {
+            View::Monitor => MonitorView(&self.state).render(frame),
+        }
+    }
+
+    /// updates the application's state based on user input
+    fn handle_events(&mut self) -> Result<()> {
+        let event = event::read().context("Failed to read input event")?;
+        let action = match self.view {
+            View::Monitor => MonitorView(&self.state).handle_events(event),
+        };
+        match action {
+            Some(Action::Exit) => home_automation_common::request_shutdown(),
+            Some(Action::ChangeView(v)) => self.view = v,
+            Some(Action::Refresh) => {}
+            Some(Action::ToggleAutoRefresh) => {}
+            None => {}
+        }
+        Ok(())
+    }
+}
+
+enum Action {
+    ChangeView(View),
+    Refresh,
+    ToggleAutoRefresh,
+    Exit,
+}
+
+struct MonitorView<'a>(&'a HashMap<String, EntityState>);
+
+impl<'a> MonitorView<'a> {
     fn render_table(&self, frame: &mut Frame, area: Rect) {
         use ratatui::{
             layout::Constraint,
@@ -134,7 +195,7 @@ impl App {
                 Constraint::Length(8),
                 Constraint::Percentage(80),
             ])
-            .rows(self.state.iter().map(|(name, state)| {
+            .rows(self.0.iter().map(|(name, state)| {
                 Row::new([
                     name.into(),
                     state.entity_type().to_string().blue(),
@@ -145,20 +206,7 @@ impl App {
         frame.render_widget(table, area);
     }
 
-    fn prepare_scaffolding(instructions: Title) -> Block {
-        let title = Title::from(" Home Automation Client ".bold());
-        Block::default()
-            .title(title.alignment(Alignment::Center))
-            .title(
-                instructions
-                    .alignment(Alignment::Center)
-                    .position(Position::Bottom),
-            )
-            .borders(Borders::ALL)
-            .border_set(border::THICK)
-    }
-
-    fn render_monitor(&self, frame: &mut Frame) {
+    fn render(&self, frame: &mut Frame) {
         let instructions = Title::from(Line::from(vec![
             " Send Message ".into(),
             "<S>".blue().bold(),
@@ -169,71 +217,38 @@ impl App {
             " Quit ".into(),
             "<Q> ".blue().bold(),
         ]));
-        let block = Self::prepare_scaffolding(instructions);
+        let block = prepare_scaffolding(instructions);
 
         frame.render_widget(&block, frame.size());
         self.render_table(frame, block.inner(frame.size()));
     }
 
-    fn render_frame(&self, frame: &mut Frame) {
-        // use ratatui::layout::{Constraint, Layout};
-        // let layout =
-        //     Layout::default().constraints([Constraint::Length(3), Constraint::Min(1)].as_slice());
-        // let chunks = layout.split(frame.size());
-
-        // frame.render_widget(self.input.widget(), chunks[0]);
-        // self.render_message_counter(frame, chunks[1]);
-        self.render_monitor(frame);
-    }
-
-    /// updates the application's state based on user input
-    fn handle_events(&mut self) -> Result<()> {
-        match event::read()? {
+    fn handle_events(&self, event: event::Event) -> Option<Action> {
+        match event {
             Event::Key(KeyEvent {
-                code: code @ (KeyCode::Char('q') | KeyCode::Left | KeyCode::Right),
-                kind,
+                code: KeyCode::Char('s'),
                 ..
-            }) => {
-                if kind != KeyEventKind::Press {
-                    return Ok(());
-                }
-                match code {
-                    KeyCode::Char('q') => {
-                        home_automation_common::request_shutdown();
-                    }
-                    KeyCode::Left => self
-                        .decrement_counter()
-                        .context("Failed to decrement counter")?,
-                    KeyCode::Right => self
-                        .increment_counter()
-                        .context("Failed to increment counter")?,
-                    _ => {}
-                }
-                Ok(())
-            }
+            }) => Some(Action::ChangeView(todo!())),
             Event::Key(KeyEvent {
-                code: KeyCode::Enter,
+                code: KeyCode::Char('q'),
                 ..
-            }) => Ok(()),
-            event => {
-                self.input.input(event);
-                Ok(())
-            }
+            }) => Some(Action::Exit),
+            Event::Key(KeyEvent {
+                code: KeyCode::Char('r'),
+                modifiers: KeyModifiers::NONE,
+                kind: KeyEventKind::Press,
+                ..
+            }) => Some(Action::Refresh),
+            Event::Key(KeyEvent {
+                code: KeyCode::Char('r'),
+                modifiers: KeyModifiers::CONTROL,
+                kind: KeyEventKind::Press,
+                ..
+            }) => Some(Action::ToggleAutoRefresh),
+            _ => None,
         }
     }
-
-    fn decrement_counter(&mut self) -> Result<()> {
-        self.counter -= 1;
-        Ok(())
-    }
-
-    fn increment_counter(&mut self) -> Result<()> {
-        self.counter += 1;
-        anyhow::ensure!(self.counter <= 2, "counter overflow");
-        Ok(())
-    }
 }
-
 fn main() -> Result<()> {
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
