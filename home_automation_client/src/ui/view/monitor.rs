@@ -3,7 +3,11 @@ use std::collections::HashMap;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use home_automation_common::EntityState;
 use ratatui::{
-    layout::{Constraint, Rect}, style::Stylize as _, text::Line, widgets::block::Title, Frame
+    layout::{Constraint, Rect},
+    style::Stylize as _,
+    text::Line,
+    widgets::block::Title,
+    Frame,
 };
 
 use crate::ui::app::Action;
@@ -92,7 +96,7 @@ impl<'a> UiView for MonitorView<'a> {
                 code: KeyCode::Char('s'),
                 kind: KeyEventKind::Press,
                 ..
-            }) => Some(Action::ChangeView(View::send())),
+            }) => Some(Action::ChangeView(View::Send(Default::default()))),
             Event::Key(KeyEvent {
                 code: KeyCode::Esc, ..
             }) => Some(Action::Exit),

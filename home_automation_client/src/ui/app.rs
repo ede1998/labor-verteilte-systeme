@@ -64,28 +64,28 @@ impl App {
             Some(Action::Refresh) => todo!(),
             Some(Action::ToggleAutoRefresh) => todo!(),
             Some(Action::SetMessageRecipient(recipient)) => {
-                let (input, list, stage) = self.view.ensure_send_mut();
-                input.cancel_selection();
-                input.select_all();
-                input.insert_str(recipient);
-                input.set_cursor_style(Default::default());
-                list.select(None);
-                *stage = SendStage::PayloadSelect {};
+                let send_data = self.view.ensure_send_mut();
+                send_data.input.cancel_selection();
+                send_data.input.select_all();
+                send_data.input.insert_str(recipient);
+                send_data.input.set_cursor_style(Default::default());
+                send_data.list.select(None);
+                send_data.stage = SendStage::PayloadSelect {};
             }
             Some(Action::SetRecipientSelection(index)) => {
-                let (input, list, _) = self.view.ensure_send_mut();
-                list.select(index);
-                input.set_cursor_style(if index.is_some() {
+                let send_data = self.view.ensure_send_mut();
+                send_data.list.select(index);
+                send_data.input.set_cursor_style(if index.is_some() {
                     Default::default()
                 } else {
                     Modifier::REVERSED.into()
                 });
             }
             Some(Action::TextInput(keyboard_input)) => {
-                let (input, list, _) = self.view.ensure_send_mut();
-                input.input(keyboard_input);
-                input.set_cursor_style(Modifier::REVERSED.into());
-                list.select(None);
+                let send_data = self.view.ensure_send_mut();
+                send_data.input.input(keyboard_input);
+                send_data.input.set_cursor_style(Modifier::REVERSED.into());
+                send_data.list.select(None);
             }
             None => {}
         }

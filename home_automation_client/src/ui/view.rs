@@ -40,42 +40,74 @@ fn prepare_scaffolding(instructions: Title) -> Block {
         .border_set(border::THICK)
 }
 
+#[derive(Debug, Clone, Default)]
+pub enum PayloadTab {
+    #[default]
+    UpdateFrequency,
+    Light,
+    AirConditioning,
+}
+
+impl std::fmt::Display for PayloadTab {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let text = match self {
+            PayloadTab::UpdateFrequency => "Update frequency",
+            PayloadTab::Light => "Light",
+            PayloadTab::AirConditioning => "Air conditioning",
+        };
+        f.write_str(text)
+    }
+}
+
+impl PayloadTab {
+    pub fn iter() -> impl Iterator<Item = Self> {
+        [Self::UpdateFrequency, Self::Light, Self::AirConditioning].into_iter()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum SendStage {
     EntitySelect,
     PayloadSelect {},
 }
 
+#[derive(Debug, Clone)]
+pub struct SendData {
+    pub input: TextArea<'static>,
+    pub list: ListState,
+    pub stage: SendStage,
+    pub tab: PayloadTab,
+}
+
+impl Default for SendData {
+    fn default() -> Self {
+        let list = ListState::default();
+        let mut input = TextArea::default();
+        input.set_cursor_line_style(Default::default());
+        Self {
+            input,
+            list,
+            stage: SendStage::EntitySelect,
+            tab: Default::default(),
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone)]
 pub enum View {
     #[default]
     Monitor,
-    Send {
-        input: TextArea<'static>,
-        list: ListState,
-        stage: SendStage,
-    },
+    Send(SendData),
 }
 
 impl View {
-    pub fn send() -> Self {
-        let list = ListState::default();
-        let mut input = TextArea::default();
-        input.set_cursor_line_style(Default::default());
-        Self::Send {
-            input,
-            list,
-            stage: SendStage::EntitySelect,
-        }
-    }
-
-    pub fn ensure_send_mut(&mut self) -> (&mut TextArea<'static>, &mut ListState, &mut SendStage) {
+    pub fn ensure_send_mut(&mut self) -> &mut SendData {
         loop {
             match self {
                 View::Monitor => {
-                    *self = View::send();
+                    *self = View::Send(Default::default());
                 }
-                View::Send { input, list, stage } => break (input, list, stage),
+                View::Send(data) => break data,
             }
         }
     }
@@ -105,11 +137,11 @@ impl View {
 
         match self {
             Self::Monitor => Views::MonitorView(MonitorView(state)),
-            Self::Send { input, list, stage } => Views::SendView(SendView {
+            Self::Send(data) => Views::SendView(SendView {
                 state,
-                entity_input: input,
-                list,
-                stage,
+                entity_input: &mut data.input,
+                list: &mut data.list,
+                stage: &mut data.stage,
             }),
         }
     }
