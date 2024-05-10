@@ -1,4 +1,3 @@
-
 pub trait ApplyIf: Sized {
     fn apply_if<F: FnOnce(Self) -> Self>(self, condition: bool, f: F) -> Self {
         self.apply_or_else(condition, f, std::convert::identity)
@@ -20,5 +19,40 @@ impl<T> ApplyIf for T {
         } else {
             else_apply(self)
         }
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct Wrapping {
+    current: usize,
+    max: usize,
+}
+
+impl Wrapping {
+    pub fn new(current: usize, max: usize) -> Self {
+        Self { current, max }
+    }
+
+    pub fn current(self) -> usize {
+        self.current
+    }
+
+    pub fn inc(mut self) -> Self {
+        if self.current >= self.max {
+            self.current = 0;
+        } else {
+            self.current += 1;
+        }
+
+        self
+    }
+
+    pub fn dec(mut self) -> Self {
+        if self.current == 0 {
+            self.current = self.max;
+        } else {
+            self.current -= 1;
+        }
+        self
     }
 }

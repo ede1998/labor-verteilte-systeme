@@ -8,7 +8,10 @@ use ratatui::{
 };
 use tui_textarea::TextArea;
 
-use crate::{ui::app::Action, utility::ApplyIf as _};
+use crate::{
+    ui::app::Action,
+    utility::{ApplyIf as _, Wrapping},
+};
 
 use super::{prepare_scaffolding, SendStage, UiView, View};
 
@@ -56,15 +59,15 @@ impl<'a> SendView<'a> {
 
         let payload_selection_active = matches!(self.stage, SendStage::PayloadSelect { .. });
 
-        let tabs = Tabs::new(vec!["TODO", "IN PROGRESS", "DONE"])
-            .block(block("Payload", payload_selection_active, Color::Blue))
-            .style(Style::default().white())
-            .highlight_style(Style::default().underlined().bold().yellow())
-            .select(1)
-            .divider(symbols::DOT)
-            .padding(" ", " ");
+        let container = block("Payload", payload_selection_active, Color::Blue);
+        frame.render_widget(&container, area);
 
-        frame.render_widget(tabs, area);
+        let layout = Layout::vertical([Constraint::Length(1), Constraint::Min(0)]);
+        let [tab_header_area, tab_content_area] = layout.areas(container.inner(area));
+
+        let tabs = Tabs::new(["Update frequency", "Light", "A/C"]);
+
+        frame.render_widget(tabs, tab_header_area);
     }
 
     fn handle_generic_event(&self, event: &Event) -> Option<Action> {
@@ -77,15 +80,10 @@ impl<'a> SendView<'a> {
     }
 
     fn handle_name_select_event(&self, event: &Event) -> Option<Action> {
-        let update_selection_index = |increase| {
-            let max = self.state.len().checked_sub(1)?;
+        let update_index = |increase: fn(Wrapping) -> Wrapping| {
             let current = self.list.selected()?;
-            match increase {
-                true if current >= max => Some(0),
-                false if current == 0 => Some(max),
-                true => Some(current + 1),
-                false => Some(current - 1),
-            }
+            let max = self.state.len().checked_sub(1)?;
+            Some(increase(Wrapping::new(current, max)).current())
         };
         match event {
             Event::Key(KeyEvent {
@@ -111,12 +109,12 @@ impl<'a> SendView<'a> {
                 code: KeyCode::Up,
                 kind: KeyEventKind::Press,
                 ..
-            }) => Some(Action::SetRecipientSelection(update_selection_index(true))),
+            }) => Some(Action::SetRecipientSelection(update_index(Wrapping::inc))),
             Event::Key(KeyEvent {
                 code: KeyCode::Down,
                 kind: KeyEventKind::Press,
                 ..
-            }) => Some(Action::SetRecipientSelection(update_selection_index(false))),
+            }) => Some(Action::SetRecipientSelection(update_index(Wrapping::dec))),
             event if self.list.selected().is_none() => {
                 Some(Action::TextInput(event.clone().into()))
             }
