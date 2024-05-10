@@ -92,7 +92,7 @@ pub mod protobuf {
             }
         }
 
-        pub fn sensor(entity_name: String, update_frequency_hz: f32) -> Self {
+        pub fn frequency(entity_name: String, update_frequency_hz: f32) -> Self {
             Self {
                 entity_name,
                 state: Some(named_entity_state::State::SensorConfiguration(

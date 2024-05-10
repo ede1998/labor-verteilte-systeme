@@ -3,12 +3,12 @@ use std::collections::HashMap;
 use anyhow::{Context as _, Result};
 use crossterm::event;
 use home_automation_common::{
-    protobuf::{entity_discovery_command::EntityType, ActuatorState},
+    protobuf::{entity_discovery_command::EntityType, ActuatorState, NamedEntityState},
     EntityState,
 };
 
 use super::{
-    view::{SendStage, UiView, View},
+    view::{PayloadTab, SendStage, UiView, View},
     Tui,
 };
 
@@ -20,6 +20,7 @@ pub enum Action {
     SetMessageRecipient(String),
     SetRecipientSelection(Option<usize>),
     TextInput(tui_textarea::Input),
+    SendMessage(NamedEntityState),
 }
 
 #[derive(Debug)]
@@ -74,11 +75,16 @@ impl App {
                 let send_data = self.view.ensure_send_mut();
                 send_data.list.select(index);
             }
-            Some(Action::TextInput(keyboard_input)) => {
+            Some(Action::TextInput(input)) => {
                 let send_data = self.view.ensure_send_mut();
-                send_data.input.input(keyboard_input);
                 send_data.list.select(None);
+                if matches!(send_data.stage, SendStage::EntitySelect) {
+                    send_data.input.input(input);
+                } else if let PayloadTab::UpdateFrequency(freq_input) = &mut send_data.tab {
+                    freq_input.input(input);
+                }
             }
+            Some(Action::SendMessage(_)) => todo!(),
             None => {}
         }
         Ok(())

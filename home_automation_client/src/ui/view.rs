@@ -40,13 +40,24 @@ fn prepare_scaffolding(instructions: Title) -> Block {
         .border_set(border::THICK)
 }
 
-fn toggle_focus(focused: bool, input: &mut TextArea) {
-    let cursor = if focused {
-        Modifier::REVERSED
-    } else {
-        Modifier::empty()
-    };
-    input.set_cursor_style(cursor.into());
+pub trait TextAreaExt {
+    fn toggle_focus(&mut self, focused: bool);
+    fn text(&self) -> &str;
+}
+
+impl TextAreaExt for TextArea<'_> {
+    fn toggle_focus(&mut self, focused: bool) {
+        let cursor = if focused {
+            Modifier::REVERSED
+        } else {
+            Modifier::empty()
+        };
+        self.set_cursor_style(cursor.into());
+    }
+
+    fn text(&self) -> &str {
+        self.lines().first().map_or("", std::ops::Deref::deref)
+    }
 }
 
 #[derive(Debug, Clone)]

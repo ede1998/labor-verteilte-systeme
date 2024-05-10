@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
-use home_automation_common::EntityState;
+use home_automation_common::{protobuf::NamedEntityState, EntityState};
 use ratatui::{
     prelude::*,
     widgets::{block::Title, Block, List, ListState},
@@ -13,7 +13,7 @@ use crate::{
     utility::{ApplyIf as _, Wrapping},
 };
 
-use super::{prepare_scaffolding, toggle_focus, SendStage, UiView, View};
+use super::{prepare_scaffolding, SendStage, TextAreaExt, UiView, View};
 
 pub struct SendView<'a> {
     pub(super) state: &'a HashMap<String, EntityState>,
@@ -44,7 +44,8 @@ impl<'a> SendView<'a> {
         let [input_area, list_area] = layout.areas(container.inner(area));
 
         let input_block = block("", !list_focused, Color::Magenta);
-        toggle_focus(entity_focused && !list_focused, self.entity_input);
+        self.entity_input
+            .toggle_focus(entity_focused && !list_focused);
 
         let list = List::new(self.state.keys().map(Span::raw))
             .block(block("", list_focused, Color::Magenta))
@@ -72,7 +73,7 @@ impl<'a> SendView<'a> {
 
         match self.tab {
             PayloadTab::UpdateFrequency(text) => {
-                toggle_focus(payload_selection_active, text);
+                text.toggle_focus(payload_selection_active);
                 let layout = Layout::vertical([Constraint::Length(3)]);
                 let [area] = layout.areas(tab_content_area);
                 frame.render_widget(text.widget(), area);
@@ -107,7 +108,7 @@ impl<'a> SendView<'a> {
             }) => {
                 let recipient = match self.list.selected() {
                     Some(index) => self.state.keys().nth(index)?,
-                    None => self.entity_input.lines().first()?,
+                    None => self.entity_input.text(),
                 };
                 Some(Action::SetMessageRecipient(recipient.to_owned()))
             }
@@ -132,6 +133,52 @@ impl<'a> SendView<'a> {
             event if self.list.selected().is_none() => {
                 Some(Action::TextInput(event.clone().into()))
             }
+            _ => None,
+        }
+    }
+
+    fn handle_payload_select_event(&self, event: &Event) -> Option<Action> {
+        match event {
+            Event::Key(KeyEvent {
+                code: KeyCode::Enter,
+                kind: KeyEventKind::Press,
+                ..
+            }) => Some(Action::SendMessage(match &self.tab {
+                PayloadTab::UpdateFrequency(text) => {
+                    let freq: f32 = text.text().parse().ok()?;
+                    NamedEntityState::frequency(self.entity_input.text().to_owned(), freq)
+                }
+                PayloadTab::Light { brightness } => todo!(),
+                PayloadTab::AirConditioning(_) => todo!(),
+            })),
+            Event::Key(KeyEvent {
+                code: KeyCode::Tab,
+                kind: KeyEventKind::Press,
+                ..
+            }) => {
+                todo!()
+            }
+            Event::Key(KeyEvent {
+                code: KeyCode::Up,
+                kind: KeyEventKind::Press,
+                ..
+            }) => todo!(),
+            Event::Key(KeyEvent {
+                code: KeyCode::Down,
+                kind: KeyEventKind::Press,
+                ..
+            }) => todo!(),
+            Event::Key(event) if matches!(self.tab, PayloadTab::UpdateFrequency { .. }) => {
+                match event.code {
+                    KeyCode::Char(c)
+                        if event.modifiers.is_empty() && !c.is_numeric() && c != '.' =>
+                    {
+                        None
+                    }
+                    _ => Some(Action::TextInput(Event::Key(*event).into())),
+                }
+            }
+
             _ => None,
         }
     }
@@ -163,7 +210,7 @@ impl<'a> UiView for SendView<'a> {
         self.handle_generic_event(&event)
             .or_else(|| match self.stage {
                 SendStage::EntitySelect => self.handle_name_select_event(&event),
-                SendStage::PayloadSelect {} => todo!(),
+                SendStage::PayloadSelect {} => self.handle_payload_select_event(&event),
             })
     }
 }
