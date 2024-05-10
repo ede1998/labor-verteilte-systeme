@@ -68,8 +68,9 @@ impl<'a> SendView<'a> {
         let layout = Layout::vertical([Constraint::Length(1), Constraint::Min(0)]);
         let [tab_header_area, tab_content_area] = layout.areas(container.inner(area));
 
-        let tabs = Tabs::new(PayloadTab::iter().map(|t| t.to_string()))
-            .highlight_style(Style::from(Color::Magenta).bold());
+        let tabs = Tabs::new(PayloadTab::titles())
+            .highlight_style(Style::from(Color::Magenta).bold())
+            .select(self.tab.index());
 
         match self.tab {
             PayloadTab::UpdateFrequency(text) => {
@@ -78,8 +79,8 @@ impl<'a> SendView<'a> {
                 let [area] = layout.areas(tab_content_area);
                 frame.render_widget(text.widget(), area);
             }
-            PayloadTab::Light { brightness } => todo!(),
-            PayloadTab::AirConditioning(_) => todo!(),
+            PayloadTab::Light { brightness } => {}
+            PayloadTab::AirConditioning(_) => {}
         }
 
         frame.render_widget(tabs, tab_header_area);
@@ -152,11 +153,19 @@ impl<'a> SendView<'a> {
                 PayloadTab::AirConditioning(_) => todo!(),
             })),
             Event::Key(KeyEvent {
-                code: KeyCode::Tab,
+                code: code @ (KeyCode::Tab | KeyCode::BackTab),
                 kind: KeyEventKind::Press,
                 ..
             }) => {
-                todo!()
+                let active = Wrapping::new(self.tab.index(), PayloadTab::max());
+                let update = if matches!(code, KeyCode::BackTab) {
+                    Wrapping::dec
+                } else {
+                    Wrapping::inc
+                };
+                Some(Action::ChangePayloadTab(PayloadTab::from_index(
+                    update(active).current(),
+                )?))
             }
             Event::Key(KeyEvent {
                 code: KeyCode::Up,

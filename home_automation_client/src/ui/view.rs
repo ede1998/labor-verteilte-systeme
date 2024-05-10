@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, mem::Discriminant};
 
 use crossterm::event::Event;
 use home_automation_common::EntityState;
@@ -77,25 +77,68 @@ impl Default for PayloadTab {
     }
 }
 
-impl std::fmt::Display for PayloadTab {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let text = match self {
-            PayloadTab::UpdateFrequency { .. } => "Update frequency (Hz)",
-            PayloadTab::Light { .. } => "Light (%)",
-            PayloadTab::AirConditioning { .. } => "Air conditioning (On/Off)",
-        };
-        f.write_str(text)
-    }
-}
-
 impl PayloadTab {
-    pub fn iter() -> impl Iterator<Item = Self> {
-        [
-            Self::UpdateFrequency(TextArea::default()),
-            Self::Light { brightness: 0.0 },
-            Self::AirConditioning(false),
-        ]
-        .into_iter()
+    fn all() -> &'static [Discriminant<Self>; 3] {
+        use std::{mem::discriminant, sync::OnceLock};
+        static ALL: OnceLock<[Discriminant<PayloadTab>; 3]> = OnceLock::new();
+        ALL.get_or_init(|| {
+            [
+                discriminant(&Self::UpdateFrequency(TextArea::default())),
+                discriminant(&Self::Light { brightness: 0.0 }),
+                discriminant(&Self::AirConditioning(true)),
+            ]
+        })
+    }
+
+    fn title(d: Discriminant<Self>) -> &'static str {
+        let [freq, light, ac] = Self::all();
+        match d {
+            _ if d == *freq => "Update frequency (Hz)",
+            _ if d == *light => "Light (%)",
+            _ if d == *ac => "Air conditioning (On/Off)",
+            _ => "",
+        }
+    }
+
+    pub fn titles() -> impl Iterator<Item = &'static str> {
+        Self::all().iter().map(|d| Self::title(*d))
+    }
+
+    pub fn max() -> usize {
+        Self::all().len() - 1
+    }
+
+    pub fn index(&self) -> usize {
+        let result = match self {
+            PayloadTab::UpdateFrequency(_) => 0,
+            PayloadTab::Light { .. } => 1,
+            PayloadTab::AirConditioning(_) => 2,
+        };
+        debug_assert_eq!(result, {
+            use std::mem::discriminant;
+            let this = discriminant(self);
+            Self::all()
+                .iter()
+                .position(|d| *d == this)
+                .expect("Failed to find discriminant")
+        });
+
+        result
+    }
+
+    pub fn from_index(index: usize) -> Option<Self> {
+        use std::mem::discriminant;
+        let result = match index {
+            0 => Self::default(),
+            1 => Self::Light { brightness: 0.0 },
+            2 => Self::AirConditioning(false),
+            _ => return None,
+        };
+        debug_assert_eq!(
+            Some(&discriminant(&result)),
+            Self::all().get(index)
+        );
+        Some(result)
     }
 }
 

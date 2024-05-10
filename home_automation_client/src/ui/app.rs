@@ -21,6 +21,7 @@ pub enum Action {
     SetRecipientSelection(Option<usize>),
     TextInput(tui_textarea::Input),
     SendMessage(NamedEntityState),
+    ChangePayloadTab(PayloadTab),
 }
 
 #[derive(Debug)]
@@ -85,6 +86,10 @@ impl App {
                 }
             }
             Some(Action::SendMessage(_)) => todo!(),
+            Some(Action::ChangePayloadTab(tab)) => {
+                let send_data = self.view.ensure_send_mut();
+                send_data.tab = tab;
+            }
             None => {}
         }
         Ok(())
