@@ -37,9 +37,7 @@ impl<'a> SendView<'a> {
         frame.render_widget(&container, area);
 
         let layout = Layout::vertical([Constraint::Length(3), Constraint::Min(5)]);
-        let [input_area, list_area] = *layout.split(container.inner(area)) else {
-            panic!("Failed to setup layout");
-        };
+        let [input_area, list_area] = layout.areas(container.inner(area));
 
         let input_block = block("", entity_focussed && !list_focussed, Color::Magenta);
 
@@ -144,9 +142,7 @@ impl<'a> UiView for SendView<'a> {
         frame.render_widget(&block, frame.size());
 
         let outer_layout = Layout::vertical([Constraint::Min(10), Constraint::Min(10)]);
-        let [name_area, payload_area] = *outer_layout.split(block.inner(frame.size())) else {
-            panic!("Failed to setup layout.")
-        };
+        let [name_area, payload_area] = outer_layout.areas(block.inner(frame.size()));
         self.render_name_select(frame, name_area);
         self.render_payload_select(frame, payload_area);
     }

@@ -64,11 +64,12 @@ impl App {
             Some(Action::Refresh) => todo!(),
             Some(Action::ToggleAutoRefresh) => todo!(),
             Some(Action::SetMessageRecipient(recipient)) => {
-                let (input, _, stage) = self.view.ensure_send_mut();
+                let (input, list, stage) = self.view.ensure_send_mut();
                 input.cancel_selection();
                 input.select_all();
                 input.insert_str(recipient);
                 input.set_cursor_style(Default::default());
+                list.select(None);
                 *stage = SendStage::PayloadSelect {};
             }
             Some(Action::SetRecipientSelection(index)) => {
@@ -81,9 +82,10 @@ impl App {
                 });
             }
             Some(Action::TextInput(keyboard_input)) => {
-                let (input, _, _) = self.view.ensure_send_mut();
+                let (input, list, _) = self.view.ensure_send_mut();
                 input.input(keyboard_input);
                 input.set_cursor_style(Modifier::REVERSED.into());
+                list.select(None);
             }
             None => {}
         }
