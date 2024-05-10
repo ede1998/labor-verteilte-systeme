@@ -55,7 +55,6 @@ impl App {
 
     /// updates the application's state based on user input
     fn handle_events(&mut self) -> Result<()> {
-        use ratatui::style::Modifier;
         let event = event::read().context("Failed to read input event")?;
         let action = self.view.active(&self.state).handle_events(event);
         match action {
@@ -68,23 +67,16 @@ impl App {
                 send_data.input.cancel_selection();
                 send_data.input.select_all();
                 send_data.input.insert_str(recipient);
-                send_data.input.set_cursor_style(Default::default());
                 send_data.list.select(None);
                 send_data.stage = SendStage::PayloadSelect {};
             }
             Some(Action::SetRecipientSelection(index)) => {
                 let send_data = self.view.ensure_send_mut();
                 send_data.list.select(index);
-                send_data.input.set_cursor_style(if index.is_some() {
-                    Default::default()
-                } else {
-                    Modifier::REVERSED.into()
-                });
             }
             Some(Action::TextInput(keyboard_input)) => {
                 let send_data = self.view.ensure_send_mut();
                 send_data.input.input(keyboard_input);
-                send_data.input.set_cursor_style(Modifier::REVERSED.into());
                 send_data.list.select(None);
             }
             None => {}

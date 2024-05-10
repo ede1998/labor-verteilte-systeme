@@ -13,14 +13,14 @@ use crate::{
     utility::{ApplyIf as _, Wrapping},
 };
 
-use super::{prepare_scaffolding, SendStage, UiView, View};
+use super::{prepare_scaffolding, toggle_focus, SendStage, UiView, View};
 
 pub struct SendView<'a> {
     pub(super) state: &'a HashMap<String, EntityState>,
-    pub(super) entity_input: &'a TextArea<'a>,
+    pub(super) entity_input: &'a mut TextArea<'static>,
     pub(super) list: &'a mut ListState,
     pub(super) stage: &'a SendStage,
-    pub(super) tab: &'a PayloadTab,
+    pub(super) tab: &'a mut PayloadTab,
 }
 
 fn block(title: &str, highlighted: bool, color: Color) -> Block {
@@ -34,19 +34,20 @@ fn block(title: &str, highlighted: bool, color: Color) -> Block {
 
 impl<'a> SendView<'a> {
     fn render_name_select(&mut self, frame: &mut Frame, area: Rect) {
-        let entity_focussed = matches!(self.stage, SendStage::EntitySelect);
-        let list_focussed = entity_focussed && self.list.selected().is_some();
+        let entity_focused = matches!(self.stage, SendStage::EntitySelect);
+        let list_focused = entity_focused && self.list.selected().is_some();
 
-        let container = block("Entity", entity_focussed, Color::Blue);
+        let container = block("Entity", entity_focused, Color::Blue);
         frame.render_widget(&container, area);
 
         let layout = Layout::vertical([Constraint::Length(3), Constraint::Min(5)]);
         let [input_area, list_area] = layout.areas(container.inner(area));
 
-        let input_block = block("", !list_focussed, Color::Magenta);
+        let input_block = block("", !list_focused, Color::Magenta);
+        toggle_focus(entity_focused && !list_focused, self.entity_input);
 
         let list = List::new(self.state.keys().map(Span::raw))
-            .block(block("", list_focussed, Color::Magenta))
+            .block(block("", list_focused, Color::Magenta))
             // invert color scheme for selected line
             .highlight_style(Modifier::REVERSED);
 
@@ -55,7 +56,7 @@ impl<'a> SendView<'a> {
         frame.render_stateful_widget(list, list_area, self.list);
     }
 
-    fn render_payload_select(&self, frame: &mut Frame, area: Rect) {
+    fn render_payload_select(&mut self, frame: &mut Frame, area: Rect) {
         use ratatui::widgets::Tabs;
 
         let payload_selection_active = matches!(self.stage, SendStage::PayloadSelect { .. });
@@ -71,6 +72,7 @@ impl<'a> SendView<'a> {
 
         match self.tab {
             PayloadTab::UpdateFrequency(text) => {
+                toggle_focus(payload_selection_active, text);
                 let layout = Layout::vertical([Constraint::Length(3)]);
                 let [area] = layout.areas(tab_content_area);
                 frame.render_widget(text.widget(), area);

@@ -4,7 +4,7 @@ use crossterm::event::Event;
 use home_automation_common::EntityState;
 use ratatui::{
     layout::Alignment,
-    style::Stylize as _,
+    style::{Color, Modifier, Stylize as _},
     symbols::border,
     widgets::{
         block::{Position, Title},
@@ -40,6 +40,15 @@ fn prepare_scaffolding(instructions: Title) -> Block {
         .border_set(border::THICK)
 }
 
+fn toggle_focus(focused: bool, input: &mut TextArea) {
+    let cursor = if focused {
+        Modifier::REVERSED
+    } else {
+        Modifier::empty()
+    };
+    input.set_cursor_style(cursor.into());
+}
+
 #[derive(Debug, Clone)]
 pub enum PayloadTab {
     UpdateFrequency(TextArea<'static>),
@@ -52,7 +61,7 @@ impl Default for PayloadTab {
         let mut text_area = TextArea::default();
         text_area.set_cursor_line_style(Default::default());
         text_area.set_cursor_style(Default::default());
-        text_area.set_block(Block::bordered().title("Hz"));
+        text_area.set_block(Block::bordered().border_style(Color::Magenta));
         Self::UpdateFrequency(text_area)
     }
 }
@@ -60,9 +69,9 @@ impl Default for PayloadTab {
 impl std::fmt::Display for PayloadTab {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let text = match self {
-            PayloadTab::UpdateFrequency { .. } => "Update frequency",
-            PayloadTab::Light { .. } => "Light",
-            PayloadTab::AirConditioning { .. } => "Air conditioning",
+            PayloadTab::UpdateFrequency { .. } => "Update frequency (Hz)",
+            PayloadTab::Light { .. } => "Light (%)",
+            PayloadTab::AirConditioning { .. } => "Air conditioning (On/Off)",
         };
         f.write_str(text)
     }
@@ -153,10 +162,10 @@ impl View {
             Self::Monitor => Views::MonitorView(MonitorView(state)),
             Self::Send(data) => Views::SendView(SendView {
                 state,
-                entity_input: &data.input,
+                entity_input: &mut data.input,
                 list: &mut data.list,
                 stage: &data.stage,
-                tab: &data.tab,
+                tab: &mut data.tab,
             }),
         }
     }
