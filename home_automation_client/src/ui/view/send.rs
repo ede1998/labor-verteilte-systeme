@@ -9,7 +9,10 @@ use ratatui::{
 use tui_textarea::TextArea;
 
 use crate::{
-    ui::{app::Action, view::PayloadTab},
+    ui::{
+        app::Action,
+        view::{PayloadTab, PayloadTabKind},
+    },
     utility::{ApplyIf as _, Wrapping},
 };
 
@@ -68,9 +71,14 @@ impl<'a> SendView<'a> {
         let layout = Layout::vertical([Constraint::Length(1), Constraint::Min(0)]);
         let [tab_header_area, tab_content_area] = layout.areas(container.inner(area));
 
-        let tabs = Tabs::new(PayloadTab::titles())
-            .highlight_style(Style::from(Color::Magenta).bold())
-            .select(self.tab.index());
+        let allowed_payloads = self.determine_allowed_payload_tabs();
+        let tabs = Tabs::new(PayloadTabKind::all().map(|t| {
+            Span::raw(t.to_string()).apply_if(allowed_payloads.contains(&t), |s| {
+                s.style(Modifier::UNDERLINED)
+            })
+        }))
+        .highlight_style(Style::from(Color::Magenta).bold())
+        .select(self.tab.index());
 
         match self.tab {
             PayloadTab::UpdateFrequency(text) => {
@@ -84,6 +92,24 @@ impl<'a> SendView<'a> {
         }
 
         frame.render_widget(tabs, tab_header_area);
+    }
+
+    fn determine_allowed_payload_tabs(&self) -> Vec<PayloadTabKind> {
+        use home_automation_common::protobuf::{actuator_state::State, ActuatorState};
+        let entity_name = self.entity_input.text();
+        match self.state.get(entity_name) {
+            Some(EntityState::Actuator(ActuatorState {
+                state: Some(State::AirConditioning(_)),
+            })) => vec![
+                PayloadTabKind::UpdateFrequency,
+                PayloadTabKind::AirConditioning,
+            ],
+            Some(EntityState::Actuator(ActuatorState {
+                state: Some(State::Light(_)),
+            })) => vec![PayloadTabKind::UpdateFrequency, PayloadTabKind::Light],
+            Some(_) => vec![PayloadTabKind::UpdateFrequency],
+            None => vec![],
+        }
     }
 
     fn handle_generic_event(&self, event: &Event) -> Option<Action> {
@@ -157,15 +183,9 @@ impl<'a> SendView<'a> {
                 kind: KeyEventKind::Press,
                 ..
             }) => {
-                let active = Wrapping::new(self.tab.index(), PayloadTab::max());
-                let update = if matches!(code, KeyCode::BackTab) {
-                    Wrapping::dec
-                } else {
-                    Wrapping::inc
-                };
-                Some(Action::ChangePayloadTab(PayloadTab::from_index(
-                    update(active).current(),
-                )?))
+                let tab_kind: PayloadTabKind = (&*self.tab).into();
+                let new_tab = tab_kind.cycle(matches!(code, KeyCode::Tab)).into();
+                Some(Action::ChangePayloadTab(new_tab))
             }
             Event::Key(KeyEvent {
                 code: KeyCode::Up,

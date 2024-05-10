@@ -60,6 +60,78 @@ impl TextAreaExt for TextArea<'_> {
     }
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[repr(u8)]
+pub enum PayloadTabKind {
+    UpdateFrequency,
+    Light,
+    AirConditioning,
+}
+
+impl PayloadTabKind {
+    pub fn cycle(self, up: bool) -> Self {
+        match (up, self) {
+            // go downwards through enum
+            (true, Self::UpdateFrequency) => Self::Light,
+            (true, Self::Light) => Self::AirConditioning,
+            (true, Self::AirConditioning) => Self::UpdateFrequency,
+            // go upwards through enum
+            (false, Self::UpdateFrequency) => Self::AirConditioning,
+            (false, Self::Light) => Self::UpdateFrequency,
+            (false, Self::AirConditioning) => Self::Light,
+        }
+    }
+
+    pub fn all() -> [Self; 3] {
+        [Self::UpdateFrequency, Self::Light, Self::AirConditioning]
+    }
+}
+
+impl std::fmt::Display for PayloadTabKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let text = match self {
+            Self::UpdateFrequency => "Update frequency (Hz)",
+            Self::Light => "Light (%)",
+            Self::AirConditioning => "Air conditioning (On/Off)",
+        };
+        f.write_str(text)
+    }
+}
+
+impl From<PayloadTabKind> for usize {
+    fn from(value: PayloadTabKind) -> Self {
+        value as _
+    }
+}
+
+impl TryFrom<usize> for PayloadTabKind {
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        Self::all().get(value).ok_or(value).copied()
+    }
+
+    type Error = usize;
+}
+
+impl From<&PayloadTab> for PayloadTabKind {
+    fn from(value: &PayloadTab) -> Self {
+        match value {
+            PayloadTab::UpdateFrequency(_) => Self::UpdateFrequency,
+            PayloadTab::Light { .. } => Self::Light,
+            PayloadTab::AirConditioning(_) => Self::AirConditioning,
+        }
+    }
+}
+
+impl From<PayloadTabKind> for PayloadTab {
+    fn from(value: PayloadTabKind) -> Self {
+        match value {
+            PayloadTabKind::UpdateFrequency => Self::default(),
+            PayloadTabKind::Light => Self::Light { brightness: 0.0 },
+            PayloadTabKind::AirConditioning => Self::AirConditioning(false),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum PayloadTab {
     UpdateFrequency(TextArea<'static>),
@@ -78,67 +150,8 @@ impl Default for PayloadTab {
 }
 
 impl PayloadTab {
-    fn all() -> &'static [Discriminant<Self>; 3] {
-        use std::{mem::discriminant, sync::OnceLock};
-        static ALL: OnceLock<[Discriminant<PayloadTab>; 3]> = OnceLock::new();
-        ALL.get_or_init(|| {
-            [
-                discriminant(&Self::UpdateFrequency(TextArea::default())),
-                discriminant(&Self::Light { brightness: 0.0 }),
-                discriminant(&Self::AirConditioning(true)),
-            ]
-        })
-    }
-
-    fn title(d: Discriminant<Self>) -> &'static str {
-        let [freq, light, ac] = Self::all();
-        match d {
-            _ if d == *freq => "Update frequency (Hz)",
-            _ if d == *light => "Light (%)",
-            _ if d == *ac => "Air conditioning (On/Off)",
-            _ => "",
-        }
-    }
-
-    pub fn titles() -> impl Iterator<Item = &'static str> {
-        Self::all().iter().map(|d| Self::title(*d))
-    }
-
-    pub fn max() -> usize {
-        Self::all().len() - 1
-    }
-
     pub fn index(&self) -> usize {
-        let result = match self {
-            PayloadTab::UpdateFrequency(_) => 0,
-            PayloadTab::Light { .. } => 1,
-            PayloadTab::AirConditioning(_) => 2,
-        };
-        debug_assert_eq!(result, {
-            use std::mem::discriminant;
-            let this = discriminant(self);
-            Self::all()
-                .iter()
-                .position(|d| *d == this)
-                .expect("Failed to find discriminant")
-        });
-
-        result
-    }
-
-    pub fn from_index(index: usize) -> Option<Self> {
-        use std::mem::discriminant;
-        let result = match index {
-            0 => Self::default(),
-            1 => Self::Light { brightness: 0.0 },
-            2 => Self::AirConditioning(false),
-            _ => return None,
-        };
-        debug_assert_eq!(
-            Some(&discriminant(&result)),
-            Self::all().get(index)
-        );
-        Some(result)
+        PayloadTabKind::from(self).into()
     }
 }
 
