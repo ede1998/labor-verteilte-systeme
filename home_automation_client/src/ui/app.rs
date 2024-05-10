@@ -82,7 +82,7 @@ impl App {
             }
             Some(Action::TextInput(keyboard_input)) => {
                 let (input, _, _) = self.view.ensure_send_mut();
-                input.input_without_shortcuts(keyboard_input);
+                input.input(keyboard_input);
                 input.set_cursor_style(Modifier::REVERSED.into());
             }
             None => {}
