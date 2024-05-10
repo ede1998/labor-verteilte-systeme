@@ -3,10 +3,8 @@ use std::collections::HashMap;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
 use home_automation_common::EntityState;
 use ratatui::{
-    layout::{Alignment, Constraint, Layout},
-    style::Stylize as _,
-    text::Line,
-    widgets::{block::Title, Block, ListState},
+    prelude::*,
+    widgets::{block::Title, Block, List, ListState},
 };
 use tui_textarea::TextArea;
 
@@ -21,18 +19,21 @@ pub struct SendView<'a> {
     pub(super) stage: &'a SendStage,
 }
 
-impl<'a> SendView<'a> {
-    fn render_name_select(&mut self, frame: &mut ratatui::Frame, area: ratatui::layout::Rect) {
-        use ratatui::{
-            style::{Color, Modifier},
-            text::Span,
-            widgets::{BorderType, List},
-        };
-
-        let container = Block::bordered()
-            .title("Entity".bold().blue())
+fn block(title: &str, highlighted: bool, color: Color) -> Block {
+    use ratatui::widgets::BorderType;
+    Block::bordered().title(title).apply_if(highlighted, |b| {
+        b.border_style(color)
             .border_type(BorderType::Thick)
-            .border_style(Color::Blue);
+            .title_style(Style::from(color).bold())
+    })
+}
+
+impl<'a> SendView<'a> {
+    fn render_name_select(&mut self, frame: &mut Frame, area: Rect) {
+        let entity_focussed = matches!(self.stage, SendStage::EntitySelect);
+        let list_focussed = self.list.selected().is_some();
+
+        let container = block("Entity", entity_focussed, Color::Blue);
         frame.render_widget(&container, area);
 
         let layout = Layout::vertical([Constraint::Length(3), Constraint::Min(5)]);
@@ -40,27 +41,32 @@ impl<'a> SendView<'a> {
             panic!("Failed to setup layout");
         };
 
-        let entity_selection_active = matches!(self.stage, SendStage::EntitySelect);
-        let list_focussed = self.list.selected().is_some();
-
-        let highlight = Color::Magenta;
-        let input_block = Block::bordered()
-            .apply_if(entity_selection_active && !list_focussed, |b| {
-                b.border_style(highlight)
-            });
+        let input_block = block("", entity_focussed && !list_focussed, Color::Magenta);
 
         let list = List::new(self.state.keys().map(Span::raw))
-            .block(
-                Block::bordered().apply_if(entity_selection_active && list_focussed, |b| {
-                    b.border_style(highlight)
-                }),
-            )
+            .block(block("", entity_focussed && list_focussed, Color::Magenta))
             // invert color scheme for selected line
             .highlight_style(Modifier::REVERSED);
 
         frame.render_widget(&input_block, input_area);
         frame.render_widget(self.entity_input.widget(), input_block.inner(input_area));
         frame.render_stateful_widget(list, list_area, self.list);
+    }
+
+    fn render_payload_select(&self, frame: &mut Frame, area: Rect) {
+        use ratatui::widgets::Tabs;
+
+        let payload_selection_active = matches!(self.stage, SendStage::PayloadSelect { .. });
+
+        let tabs = Tabs::new(vec!["TODO", "IN PROGRESS", "DONE"])
+            .block(block("Payload", payload_selection_active, Color::Blue))
+            .style(Style::default().white())
+            .highlight_style(Style::default().underlined().bold().yellow())
+            .select(1)
+            .divider(symbols::DOT)
+            .padding(" ", " ");
+
+        frame.render_widget(tabs, area);
     }
 
     fn handle_generic_event(&self, event: &Event) -> Option<Action> {
@@ -122,7 +128,7 @@ impl<'a> SendView<'a> {
 }
 
 impl<'a> UiView for SendView<'a> {
-    fn render(&mut self, frame: &mut ratatui::Frame) {
+    fn render(&mut self, frame: &mut Frame) {
         let instructions = Title::from(Line::from(vec![
             " Accept input".into(),
             "<ENTER>".blue().bold(),
@@ -142,6 +148,7 @@ impl<'a> UiView for SendView<'a> {
             panic!("Failed to setup layout.")
         };
         self.render_name_select(frame, name_area);
+        self.render_payload_select(frame, payload_area);
     }
 
     fn handle_events(&self, event: Event) -> Option<Action> {
