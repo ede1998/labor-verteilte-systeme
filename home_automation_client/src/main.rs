@@ -85,6 +85,7 @@ impl View {
         let list = ListState::default();
         let mut input = TextArea::default();
         input.set_cursor_line_style(Default::default());
+        input.set_block(Block::bordered());
         Self::Send { input, list }
     }
 
@@ -286,18 +287,22 @@ struct SendView<'a> {
 
 impl<'a> SendView<'a> {
     fn render_name_select(&mut self, frame: &mut Frame, area: Rect) {
-        use ratatui::{style::Modifier, text::Span, widgets::List};
-        let layout = Layout::vertical([
-            Constraint::Min(10),
-            Constraint::Min(10),
-            Constraint::Min(10),
-        ]);
-        let [label_area, input_area, list_area] = *layout.split(area) else {
-            panic!("Failed to setup layout");
+        use ratatui::{
+            style::{Color, Modifier},
+            text::Span,
+            widgets::{BorderType, List},
         };
 
-        let label = Span::raw("Entity").bold().blue();
-        frame.render_widget(label, label_area);
+        let container = Block::bordered()
+            .title("Entity".bold().blue())
+            .border_type(BorderType::Thick)
+            .border_style(Color::Blue);
+        frame.render_widget(&container, area);
+
+        let layout = Layout::vertical([Constraint::Length(3), Constraint::Min(5)]);
+        let [input_area, list_area] = *layout.split(container.inner(area)) else {
+            panic!("Failed to setup layout");
+        };
 
         frame.render_widget(self.entity_input.widget(), input_area);
 
@@ -313,7 +318,7 @@ impl<'a> SendView<'a> {
 impl<'a> UiView for SendView<'a> {
     fn render(&mut self, frame: &mut Frame) {
         let instructions = Title::from(Line::from(vec![
-            " Accept Input".into(),
+            " Accept input".into(),
             "<ENTER>".blue().bold(),
             " Switch focus ".into(),
             "<TAB>".blue().bold(),
