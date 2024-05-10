@@ -9,7 +9,7 @@ use ratatui::{
 use tui_textarea::TextArea;
 
 use crate::{
-    ui::app::Action,
+    ui::{app::Action, view::PayloadTab},
     utility::{ApplyIf as _, Wrapping},
 };
 
@@ -20,6 +20,7 @@ pub struct SendView<'a> {
     pub(super) entity_input: &'a TextArea<'a>,
     pub(super) list: &'a mut ListState,
     pub(super) stage: &'a SendStage,
+    pub(super) tab: &'a PayloadTab,
 }
 
 fn block(title: &str, highlighted: bool, color: Color) -> Block {
@@ -34,7 +35,7 @@ fn block(title: &str, highlighted: bool, color: Color) -> Block {
 impl<'a> SendView<'a> {
     fn render_name_select(&mut self, frame: &mut Frame, area: Rect) {
         let entity_focussed = matches!(self.stage, SendStage::EntitySelect);
-        let list_focussed = self.list.selected().is_some();
+        let list_focussed = entity_focussed && self.list.selected().is_some();
 
         let container = block("Entity", entity_focussed, Color::Blue);
         frame.render_widget(&container, area);
@@ -42,10 +43,10 @@ impl<'a> SendView<'a> {
         let layout = Layout::vertical([Constraint::Length(3), Constraint::Min(5)]);
         let [input_area, list_area] = layout.areas(container.inner(area));
 
-        let input_block = block("", entity_focussed && !list_focussed, Color::Magenta);
+        let input_block = block("", !list_focussed, Color::Magenta);
 
         let list = List::new(self.state.keys().map(Span::raw))
-            .block(block("", entity_focussed && list_focussed, Color::Magenta))
+            .block(block("", list_focussed, Color::Magenta))
             // invert color scheme for selected line
             .highlight_style(Modifier::REVERSED);
 
@@ -65,7 +66,18 @@ impl<'a> SendView<'a> {
         let layout = Layout::vertical([Constraint::Length(1), Constraint::Min(0)]);
         let [tab_header_area, tab_content_area] = layout.areas(container.inner(area));
 
-        let tabs = Tabs::new(["Update frequency", "Light", "A/C"]);
+        let tabs = Tabs::new(PayloadTab::iter().map(|t| t.to_string()))
+            .highlight_style(Style::from(Color::Magenta).bold());
+
+        match self.tab {
+            PayloadTab::UpdateFrequency(text) => {
+                let layout = Layout::vertical([Constraint::Length(3)]);
+                let [area] = layout.areas(tab_content_area);
+                frame.render_widget(text.widget(), area);
+            }
+            PayloadTab::Light { brightness } => todo!(),
+            PayloadTab::AirConditioning(_) => todo!(),
+        }
 
         frame.render_widget(tabs, tab_header_area);
     }

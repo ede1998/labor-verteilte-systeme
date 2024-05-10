@@ -40,20 +40,29 @@ fn prepare_scaffolding(instructions: Title) -> Block {
         .border_set(border::THICK)
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub enum PayloadTab {
-    #[default]
-    UpdateFrequency,
-    Light,
-    AirConditioning,
+    UpdateFrequency(TextArea<'static>),
+    Light { brightness: f32 },
+    AirConditioning(bool),
+}
+
+impl Default for PayloadTab {
+    fn default() -> Self {
+        let mut text_area = TextArea::default();
+        text_area.set_cursor_line_style(Default::default());
+        text_area.set_cursor_style(Default::default());
+        text_area.set_block(Block::bordered().title("Hz"));
+        Self::UpdateFrequency(text_area)
+    }
 }
 
 impl std::fmt::Display for PayloadTab {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let text = match self {
-            PayloadTab::UpdateFrequency => "Update frequency",
-            PayloadTab::Light => "Light",
-            PayloadTab::AirConditioning => "Air conditioning",
+            PayloadTab::UpdateFrequency { .. } => "Update frequency",
+            PayloadTab::Light { .. } => "Light",
+            PayloadTab::AirConditioning { .. } => "Air conditioning",
         };
         f.write_str(text)
     }
@@ -61,7 +70,12 @@ impl std::fmt::Display for PayloadTab {
 
 impl PayloadTab {
     pub fn iter() -> impl Iterator<Item = Self> {
-        [Self::UpdateFrequency, Self::Light, Self::AirConditioning].into_iter()
+        [
+            Self::UpdateFrequency(TextArea::default()),
+            Self::Light { brightness: 0.0 },
+            Self::AirConditioning(false),
+        ]
+        .into_iter()
     }
 }
 
@@ -139,9 +153,10 @@ impl View {
             Self::Monitor => Views::MonitorView(MonitorView(state)),
             Self::Send(data) => Views::SendView(SendView {
                 state,
-                entity_input: &mut data.input,
+                entity_input: &data.input,
                 list: &mut data.list,
-                stage: &mut data.stage,
+                stage: &data.stage,
+                tab: &data.tab,
             }),
         }
     }
