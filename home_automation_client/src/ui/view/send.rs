@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
-use home_automation_common::{protobuf::NamedEntityState, EntityState};
+use home_automation_common::{
+    protobuf::{ActuatorState, NamedEntityState},
+    EntityState,
+};
 use ratatui::{
     prelude::*,
     widgets::{block::Title, List, ListState},
@@ -185,10 +188,23 @@ impl<'a> SendView<'a> {
             }) => Some(Action::SendMessage(match &self.tab {
                 PayloadTab::UpdateFrequency(text) => {
                     let freq: f32 = text.text().parse().ok()?;
-                    NamedEntityState::frequency(self.entity_input.text().to_owned(), freq)
+                    NamedEntityState::frequency(self.entity_input.text(), freq)
                 }
-                PayloadTab::Light { brightness } => todo!(),
-                PayloadTab::AirConditioning(_) => todo!(),
+                PayloadTab::Light { brightness } => NamedEntityState::actuator(
+                    self.entity_input.text(),
+                    ActuatorState::light(*brightness),
+                ),
+                PayloadTab::AirConditioning(list) => {
+                    let on = match list.selected()? {
+                        0 => false,
+                        1 => true,
+                        _ => return None,
+                    };
+                    NamedEntityState::actuator(
+                        self.entity_input.text(),
+                        ActuatorState::air_conditioning(on),
+                    )
+                }
             })),
             Event::Key(KeyEvent {
                 code: code @ (KeyCode::Tab | KeyCode::BackTab),

@@ -85,16 +85,16 @@ pub mod protobuf {
     }
 
     impl NamedEntityState {
-        pub fn actuator(entity_name: String, value: ActuatorState) -> Self {
+        pub fn actuator(entity_name: impl Into<String>, value: ActuatorState) -> Self {
             Self {
-                entity_name,
+                entity_name: entity_name.into(),
                 state: Some(named_entity_state::State::ActuatorState(value)),
             }
         }
 
-        pub fn frequency(entity_name: String, update_frequency_hz: f32) -> Self {
+        pub fn frequency(entity_name: impl Into<String>, update_frequency_hz: f32) -> Self {
             Self {
-                entity_name,
+                entity_name: entity_name.into(),
                 state: Some(named_entity_state::State::SensorConfiguration(
                     SensorConfiguration {
                         update_frequency_hz,
