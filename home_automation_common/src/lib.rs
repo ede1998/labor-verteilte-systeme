@@ -112,6 +112,15 @@ pub mod protobuf {
             })
         }
     }
+
+    impl ClientApiCommand {
+        pub fn system_state_query() -> Self {
+            use client_api_command::CommandType;
+            ClientApiCommand {
+                command_type: Some(CommandType::Query(SystemStateQuery::default())),
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

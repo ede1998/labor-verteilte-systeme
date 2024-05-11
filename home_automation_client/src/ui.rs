@@ -5,6 +5,8 @@ use ratatui::{backend::CrosstermBackend, Terminal};
 mod app;
 mod view;
 
+pub use app::BackgroundTaskState;
+
 type Tui = Terminal<CrosstermBackend<std::io::Stdout>>;
 
 /// Initialize the terminal
@@ -31,7 +33,7 @@ fn restore_normal_tty() -> Result<()> {
     terminal::disable_raw_mode().context("Failed to disable raw_mode")
 }
 
-pub fn run() -> Result<()> {
+pub fn run(task_state: BackgroundTaskState) -> Result<()> {
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         restore_normal_tty().unwrap();
@@ -39,7 +41,7 @@ pub fn run() -> Result<()> {
     }));
 
     let result = init_raw_tty().and_then(|mut tui| {
-        let mut app = app::App::default();
+        let mut app = app::App::new(task_state);
         app.run(&mut tui)
     });
     restore_normal_tty()?;
