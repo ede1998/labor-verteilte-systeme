@@ -4,7 +4,7 @@ use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
 use home_automation_common::{protobuf::NamedEntityState, EntityState};
 use ratatui::{
     prelude::*,
-    widgets::{block::Title, Block, List, ListState},
+    widgets::{block::Title, List, ListState},
 };
 use tui_textarea::TextArea;
 
@@ -16,7 +16,7 @@ use crate::{
     utility::{ApplyIf as _, Wrapping},
 };
 
-use super::{prepare_scaffolding, SendStage, TextAreaExt, UiView, View};
+use super::{prepare_scaffolding, Border, SendStage, TextAreaExt, UiView, View};
 
 pub struct SendView<'a> {
     pub(super) state: &'a HashMap<String, EntityState>,
@@ -26,32 +26,23 @@ pub struct SendView<'a> {
     pub(super) tab: &'a mut PayloadTab,
 }
 
-fn block(title: &str, highlighted: bool, color: Color) -> Block {
-    use ratatui::widgets::BorderType;
-    Block::bordered().title(title).apply_if(highlighted, |b| {
-        b.border_style(color)
-            .border_type(BorderType::Thick)
-            .title_style(Style::from(color).bold())
-    })
-}
-
 impl<'a> SendView<'a> {
     fn render_name_select(&mut self, frame: &mut Frame, area: Rect) {
         let entity_focused = matches!(self.stage, SendStage::EntitySelect);
         let list_focused = entity_focused && self.list.selected().is_some();
 
-        let container = block("Entity", entity_focused, Color::Blue);
+        let container = Border::Blue.highlighted(entity_focused).titled("Entity");
         frame.render_widget(&container, area);
 
         let layout = Layout::vertical([Constraint::Length(3), Constraint::Min(5)]);
         let [input_area, list_area] = layout.areas(container.inner(area));
 
-        let input_block = block("", !list_focused, Color::Magenta);
+        let input_block = Border::Magenta.highlighted(!list_focused).untitled();
         self.entity_input
             .toggle_focus(entity_focused && !list_focused);
 
         let list = List::new(self.state.keys().map(Span::raw))
-            .block(block("", list_focused, Color::Magenta))
+            .block(Border::Magenta.highlighted(list_focused).untitled())
             // invert color scheme for selected line
             .highlight_style(Modifier::REVERSED);
 
@@ -65,7 +56,9 @@ impl<'a> SendView<'a> {
 
         let payload_selection_active = matches!(self.stage, SendStage::PayloadSelect { .. });
 
-        let container = block("Payload", payload_selection_active, Color::Blue);
+        let container = Border::Blue
+            .highlighted(payload_selection_active)
+            .titled("Payload");
         frame.render_widget(&container, area);
 
         let layout = Layout::vertical([Constraint::Length(1), Constraint::Min(0)]);
@@ -88,7 +81,12 @@ impl<'a> SendView<'a> {
                 frame.render_widget(text.widget(), area);
             }
             PayloadTab::Light { brightness } => {}
-            PayloadTab::AirConditioning(_) => {}
+            PayloadTab::AirConditioning(state) => {
+                let layout = Layout::vertical([Constraint::Length(4)]);
+                let [area] = layout.areas(tab_content_area);
+                let list = List::new(["On", "Off"]).block(Border::Magenta.untitled());
+                frame.render_stateful_widget(list, area, state);
+            }
         }
 
         frame.render_widget(tabs, tab_header_area);

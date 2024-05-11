@@ -1,4 +1,4 @@
-use std::{collections::HashMap, mem::Discriminant};
+use std::collections::HashMap;
 
 use crossterm::event::Event;
 use home_automation_common::EntityState;
@@ -40,7 +40,54 @@ fn prepare_scaffolding(instructions: Title) -> Block {
         .border_set(border::THICK)
 }
 
+#[derive(Debug, Copy, Clone)]
+pub enum Border {
+    NoHighlight,
+    Blue,
+    Magenta,
+}
+
+impl Border {
+    fn is_highlighted(self) -> bool {
+        !matches!(self, Border::NoHighlight)
+    }
+
+    fn color(self) -> Color {
+        match self {
+            Border::NoHighlight => Color::default(),
+            Border::Blue => Color::Blue,
+            Border::Magenta => Color::Magenta,
+        }
+    }
+
+    pub fn highlighted(self, highlight: bool) -> Self {
+        if highlight {
+            self
+        } else {
+            Self::NoHighlight
+        }
+    }
+
+    pub fn untitled(self) -> Block<'static> {
+        self.titled("")
+    }
+
+    pub fn titled(self, title: &str) -> Block<'_> {
+        use crate::utility::ApplyIf;
+        use ratatui::style::Style;
+        use ratatui::widgets::BorderType;
+        Block::bordered()
+            .title(title)
+            .apply_if(self.is_highlighted(), |b| {
+                b.border_style(self.color())
+                    .border_type(BorderType::Thick)
+                    .title_style(Style::from(self.color()).bold())
+            })
+    }
+}
+
 pub trait TextAreaExt {
+    fn initial() -> Self;
     fn toggle_focus(&mut self, focused: bool);
     fn text(&self) -> &str;
 }
@@ -57,6 +104,12 @@ impl TextAreaExt for TextArea<'_> {
 
     fn text(&self) -> &str {
         self.lines().first().map_or("", std::ops::Deref::deref)
+    }
+
+    fn initial() -> Self {
+        let mut input = TextArea::default();
+        input.set_cursor_line_style(Default::default());
+        input
     }
 }
 
@@ -127,7 +180,7 @@ impl From<PayloadTabKind> for PayloadTab {
         match value {
             PayloadTabKind::UpdateFrequency => Self::default(),
             PayloadTabKind::Light => Self::Light { brightness: 0.0 },
-            PayloadTabKind::AirConditioning => Self::AirConditioning(false),
+            PayloadTabKind::AirConditioning => Self::AirConditioning(ListState::default()),
         }
     }
 }
@@ -136,15 +189,14 @@ impl From<PayloadTabKind> for PayloadTab {
 pub enum PayloadTab {
     UpdateFrequency(TextArea<'static>),
     Light { brightness: f32 },
-    AirConditioning(bool),
+    AirConditioning(ListState),
 }
 
 impl Default for PayloadTab {
     fn default() -> Self {
-        let mut text_area = TextArea::default();
-        text_area.set_cursor_line_style(Default::default());
+        let mut text_area = TextArea::initial();
         text_area.set_cursor_style(Default::default());
-        text_area.set_block(Block::bordered().border_style(Color::Magenta));
+        text_area.set_block(Border::Magenta.untitled());
         Self::UpdateFrequency(text_area)
     }
 }
@@ -171,12 +223,9 @@ pub struct SendData {
 
 impl Default for SendData {
     fn default() -> Self {
-        let list = ListState::default();
-        let mut input = TextArea::default();
-        input.set_cursor_line_style(Default::default());
         Self {
-            input,
-            list,
+            input: TextArea::initial(),
+            list: ListState::default(),
             stage: SendStage::EntitySelect,
             tab: Default::default(),
         }
