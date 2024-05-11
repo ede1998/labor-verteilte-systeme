@@ -52,7 +52,7 @@ impl<'a> SendView<'a> {
     }
 
     fn render_payload_select(&mut self, frame: &mut Frame, area: Rect) {
-        use ratatui::widgets::Tabs;
+        use ratatui::widgets::{Gauge, Tabs};
 
         let payload_selection_active = matches!(self.stage, SendStage::PayloadSelect { .. });
 
@@ -80,7 +80,18 @@ impl<'a> SendView<'a> {
                 let [area] = layout.areas(tab_content_area);
                 frame.render_widget(text.widget(), area);
             }
-            PayloadTab::Light { brightness } => {}
+            PayloadTab::Light { brightness } => {
+                let layout = Layout::vertical([Constraint::Length(5)]);
+                let [area] = layout.areas(tab_content_area);
+                let brightness = f64::from(*brightness);
+                let gauge = Gauge::default()
+                    .block(Border::Magenta.untitled())
+                    .gauge_style(Color::Magenta)
+                    .ratio(brightness / 100.0)
+                    .label(format!("{brightness:.1}%"))
+                    .use_unicode(true);
+                frame.render_widget(gauge, area);
+            }
             PayloadTab::AirConditioning(state) => {
                 let layout = Layout::vertical([Constraint::Length(4)]);
                 let [area] = layout.areas(tab_content_area);
@@ -205,7 +216,29 @@ impl<'a> SendView<'a> {
                     _ => Some(Action::TextInput(Event::Key(*event).into())),
                 }
             }
+            Event::Key(KeyEvent {
+                code: code @ (KeyCode::Left | KeyCode::Right),
+                kind: KeyEventKind::Press | KeyEventKind::Repeat,
+                modifiers,
+                ..
+            }) => {
+                use crossterm::event::KeyModifiers;
+                let &mut PayloadTab::Light { brightness } = self.tab else {
+                    return None;
+                };
 
+                let up = matches!(code, KeyCode::Right);
+                let slow = matches!(modifiers, &KeyModifiers::SHIFT);
+                let delta = match (up, slow) {
+                    (true, true) => 0.1,
+                    (false, true) => -0.1,
+                    (true, false) => 1.0,
+                    (false, false) => -1.0,
+                };
+                Some(Action::SetLightBrightness(
+                    (brightness + delta).clamp(0.0, 100.0),
+                ))
+            }
             _ => None,
         }
     }

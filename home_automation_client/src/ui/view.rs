@@ -190,7 +190,10 @@ impl From<PayloadTabKind> for PayloadTab {
 #[derive(Debug, Clone)]
 pub enum PayloadTab {
     UpdateFrequency(TextArea<'static>),
-    Light { brightness: f32 },
+    Light {
+        /// brightness as percentage from 0.0 to 100.0
+        brightness: f32,
+    },
     AirConditioning(ListState),
 }
 

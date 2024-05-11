@@ -23,7 +23,7 @@ pub enum Action {
     SendMessage(NamedEntityState),
     ChangePayloadTab(PayloadTab),
     ToggleAirConditioning,
-    SetLightIntensity(f32),
+    SetLightBrightness(f32),
 }
 
 #[derive(Debug)]
@@ -100,7 +100,12 @@ impl App {
                     list.select(Some(current.inc().current()));
                 }
             }
-            Some(Action::SetLightIntensity(_)) => todo!(),
+            Some(Action::SetLightBrightness(desired_brightness)) => {
+                let send_data = self.view.ensure_send_mut();
+                if let PayloadTab::Light { brightness } = &mut send_data.tab {
+                    *brightness = desired_brightness;
+                }
+            }
             None => {}
         }
         Ok(())
