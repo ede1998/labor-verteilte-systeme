@@ -22,6 +22,8 @@ pub enum Action {
     TextInput(tui_textarea::Input),
     SendMessage(NamedEntityState),
     ChangePayloadTab(PayloadTab),
+    ToggleAirConditioning,
+    SetLightIntensity(f32),
 }
 
 #[derive(Debug)]
@@ -90,6 +92,15 @@ impl App {
                 let send_data = self.view.ensure_send_mut();
                 send_data.tab = tab;
             }
+            Some(Action::ToggleAirConditioning) => {
+                use crate::utility::Wrapping;
+                let send_data = self.view.ensure_send_mut();
+                if let PayloadTab::AirConditioning(list) = &mut send_data.tab {
+                    let current = Wrapping::new(list.selected().unwrap_or_default(), 1);
+                    list.select(Some(current.inc().current()));
+                }
+            }
+            Some(Action::SetLightIntensity(_)) => todo!(),
             None => {}
         }
         Ok(())

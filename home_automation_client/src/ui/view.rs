@@ -180,7 +180,9 @@ impl From<PayloadTabKind> for PayloadTab {
         match value {
             PayloadTabKind::UpdateFrequency => Self::default(),
             PayloadTabKind::Light => Self::Light { brightness: 0.0 },
-            PayloadTabKind::AirConditioning => Self::AirConditioning(ListState::default()),
+            PayloadTabKind::AirConditioning => {
+                Self::AirConditioning(ListState::default().with_selected(Some(0)))
+            }
         }
     }
 }

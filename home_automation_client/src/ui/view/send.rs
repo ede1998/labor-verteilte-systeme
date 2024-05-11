@@ -84,7 +84,10 @@ impl<'a> SendView<'a> {
             PayloadTab::AirConditioning(state) => {
                 let layout = Layout::vertical([Constraint::Length(4)]);
                 let [area] = layout.areas(tab_content_area);
-                let list = List::new(["On", "Off"]).block(Border::Magenta.untitled());
+                let list = List::new(["On", "Off"])
+                    .block(Border::Magenta.untitled())
+                    // invert color scheme for selected line
+                    .highlight_style(Modifier::REVERSED);
                 frame.render_stateful_widget(list, area, state);
             }
         }
@@ -186,15 +189,12 @@ impl<'a> SendView<'a> {
                 Some(Action::ChangePayloadTab(new_tab))
             }
             Event::Key(KeyEvent {
-                code: KeyCode::Up,
+                code: KeyCode::Up | KeyCode::Down,
                 kind: KeyEventKind::Press,
                 ..
-            }) => todo!(),
-            Event::Key(KeyEvent {
-                code: KeyCode::Down,
-                kind: KeyEventKind::Press,
-                ..
-            }) => todo!(),
+            }) if matches!(self.tab, PayloadTab::AirConditioning(..)) => {
+                Some(Action::ToggleAirConditioning)
+            }
             Event::Key(event) if matches!(self.tab, PayloadTab::UpdateFrequency { .. }) => {
                 match event.code {
                     KeyCode::Char(c)

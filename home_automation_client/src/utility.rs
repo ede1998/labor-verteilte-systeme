@@ -29,14 +29,17 @@ pub struct Wrapping {
 }
 
 impl Wrapping {
+    #[must_use]
     pub fn new(current: usize, max: usize) -> Self {
         Self { current, max }
     }
 
+    #[must_use]
     pub fn current(self) -> usize {
         self.current
     }
 
+    #[must_use]
     pub fn inc(mut self) -> Self {
         if self.current >= self.max {
             self.current = 0;
@@ -47,6 +50,7 @@ impl Wrapping {
         self
     }
 
+    #[must_use]
     pub fn dec(mut self) -> Self {
         if self.current == 0 {
             self.current = self.max;
