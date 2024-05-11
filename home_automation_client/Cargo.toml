@@ -8,5 +8,6 @@ anyhow.workspace = true
 crossterm = "0.27.0"
 home_automation_common.workspace = true
 ratatui = "0.26.2"
+time = "0.3.36"
 tracing.workspace = true
 tui-textarea = "0.4.0"

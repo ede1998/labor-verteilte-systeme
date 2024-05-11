@@ -2,3 +2,4 @@
 /.vscode
 shirt.protobin
 /rust-zmq
+client-*.log

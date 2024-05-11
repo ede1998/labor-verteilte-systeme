@@ -193,7 +193,10 @@ pub fn install_signal_handler(mut context: zmq_sockets::Context) -> anyhow::Resu
 pub struct OpenTelemetryConfiguration(());
 
 impl OpenTelemetryConfiguration {
-    pub fn new(service_name: impl Into<String>) -> anyhow::Result<Self> {
+    pub fn with_writer<W>(service_name: impl Into<String>, writer: W) -> anyhow::Result<Self>
+    where
+        W: for<'w> tracing_subscriber::fmt::MakeWriter<'w> + 'static + Send + Sync,
+    {
         if std::env::var("RUST_LOG").is_err() {
             std::env::set_var("RUST_LOG", "debug,ureq=info");
         }
@@ -207,7 +210,7 @@ impl OpenTelemetryConfiguration {
 
         let tracer = tracing_opentelemetry::layer().with_tracer(tracer);
 
-        let subscriber = tracing_subscriber::fmt::layer().json();
+        let subscriber = tracing_subscriber::fmt::layer().with_writer(writer);
 
         tracing_subscriber::registry()
             .with(subscriber)
@@ -216,6 +219,9 @@ impl OpenTelemetryConfiguration {
             .init();
 
         Ok(OpenTelemetryConfiguration(()))
+    }
+    pub fn new(service_name: impl Into<String>) -> anyhow::Result<Self> {
+        Self::with_writer(service_name, std::io::stderr)
     }
 }
 

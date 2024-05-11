@@ -1,6 +1,6 @@
-use std::time::Duration;
+use std::{fs::OpenOptions, time::Duration};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use home_automation_common::{
     protobuf::{
         entity_discovery_command::{Command, EntityType, Registration},
@@ -8,25 +8,32 @@ use home_automation_common::{
     },
     shutdown_requested, zmq_sockets, OpenTelemetryConfiguration,
 };
+use time::format_description::well_known::Iso8601;
 
 mod ui;
 mod utility;
 
 fn main() -> Result<()> {
-    return ui::run();
-
-    let _config = OpenTelemetryConfiguration::new("client")?;
+    let time = time::OffsetDateTime::now_utc()
+        .format(&Iso8601::DEFAULT)
+        .context("Failed to format timestamp")?;
+    let log_file_name = format!("client-{time}.log");
+    let log_file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_file_name)
+        .with_context(|| anyhow::anyhow!("Failed to open log file: {log_file_name}"))?;
+    let _config = OpenTelemetryConfiguration::with_writer("client", log_file)?;
     tracing::info_span!("main").in_scope(|| {
-        tracing::info!("Starting controller");
-        let context = zmq_sockets::Context::new();
-        let client = zmq_sockets::Requester::new(&context)?.connect("tcp://localhost:5556")?;
-        // TODO: implement client properly
+        tracing::info!("Starting client");
+        // let context = zmq_sockets::Context::new();
+        // let client = zmq_sockets::Requester::new(&context)?.connect("tcp://localhost:5556")?;
 
-        while !shutdown_requested() {
-            let _ = send_entity(&context, &client);
-            std::thread::sleep(Duration::from_millis(1000));
-        }
-        Ok(())
+        // while !shutdown_requested() {
+        //     let _ = send_entity(&context, &client);
+        //     std::thread::sleep(Duration::from_millis(1000));
+        // }
+        ui::run()
     })
 }
 

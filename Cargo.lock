@@ -464,6 +464,7 @@ dependencies = [
  "crossterm",
  "home_automation_common",
  "ratatui",
+ "time",
  "tracing",
  "tui-textarea",
 ]
