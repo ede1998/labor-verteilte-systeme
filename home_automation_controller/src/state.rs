@@ -39,30 +39,3 @@ impl Entity {
         }
     }
 }
-
-#[derive(Debug, Clone, Copy)]
-pub enum Action {
-    Subscribe,
-    Unsubscribe,
-}
-
-#[derive(Debug, Clone)]
-pub struct SubscriptionCommand {
-    pub topic: String,
-    pub action: Action,
-}
-
-impl SubscriptionCommand {
-    pub fn subscribe(topic: String) -> Self {
-        Self {
-            topic,
-            action: Action::Subscribe,
-        }
-    }
-    pub fn unsubscribe(topic: String) -> Self {
-        Self {
-            topic,
-            action: Action::Unsubscribe,
-        }
-    }
-}

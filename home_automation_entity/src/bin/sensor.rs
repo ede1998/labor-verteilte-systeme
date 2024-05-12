@@ -100,9 +100,11 @@ impl Entity for Sensor {
             .with_context(|| format!("Missing sensor kind. {} ", SensorKind::list_allowed()))?
             .parse()?;
 
+        let name = format!("sen_{base_name}");
+
         Ok(Self {
-            topic: sensor_measurement_topic(&base_name),
-            name: format!("sen_{base_name}"),
+            topic: sensor_measurement_topic(&name),
+            name,
             data_kind: kind,
         })
     }

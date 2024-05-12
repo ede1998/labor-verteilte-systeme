@@ -172,7 +172,6 @@ impl Publisher<markers::Linked> {
 
 impl Subscriber<markers::Linked> {
     /// Block until a message is received on any of the subscribed topics.
-    #[tracing::instrument(skip(self))]
     pub fn receive<M>(&self) -> Result<(String, M)>
     where
         M: prost::Message + prost::Name + Default,

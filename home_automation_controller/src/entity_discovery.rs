@@ -1,5 +1,3 @@
-use std::sync::mpsc::Sender;
-
 use anyhow::Context as _;
 use home_automation_common::{
     load_env,
@@ -8,26 +6,18 @@ use home_automation_common::{
     zmq_sockets::{self, markers::Linked, termination_is_ok},
 };
 
-use crate::state::{AppState, Entity, SubscriptionCommand};
+use crate::state::{AppState, Entity};
 
 pub struct EntityDiscoveryTask<'a> {
     app_state: &'a AppState,
     server: zmq_sockets::Replier<Linked>,
-    new_subscriptions: Sender<SubscriptionCommand>,
 }
 
 impl<'a> EntityDiscoveryTask<'a> {
-    pub fn new(
-        app_state: &'a AppState,
-        new_subscriptions: Sender<SubscriptionCommand>,
-    ) -> anyhow::Result<Self> {
+    pub fn new(app_state: &'a AppState) -> anyhow::Result<Self> {
         let address = load_env(home_automation_common::ENV_DISCOVERY_ENDPOINT)?;
         let server = zmq_sockets::Replier::new(&app_state.context)?.bind(&address)?;
-        Ok(Self {
-            app_state,
-            server,
-            new_subscriptions,
-        })
+        Ok(Self { app_state, server })
     }
 
     #[tracing::instrument(name = "entity discovery", skip(self))]
@@ -74,9 +64,6 @@ impl<'a> EntityDiscoveryTask<'a> {
                         let requester = self
                             .open_back_channel(ip, registration.port)
                             .context("Failed to create back-channel")?;
-                        self.new_subscriptions.send(SubscriptionCommand::subscribe(
-                            home_automation_common::entity_topic(&request.entity_name, entity_type),
-                        ))?;
                         v.insert(Entity::new(requester, entity_type));
                     }
                 }
@@ -86,10 +73,6 @@ impl<'a> EntityDiscoveryTask<'a> {
                     "Unregistering entity {} because of disconnect request",
                     request.entity_name
                 );
-                self.new_subscriptions
-                    .send(SubscriptionCommand::unsubscribe(
-                        home_automation_common::entity_topic(&request.entity_name, entity_type),
-                    ))?;
                 self.app_state.unregister(&request.entity_name)?;
             }
             Some(Command::Heartbeat(())) => {

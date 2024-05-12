@@ -100,10 +100,11 @@ impl Entity for Actuator {
             .nth(2)
             .with_context(|| format!("Missing actuator kind. {} ", ActuatorKind::list_allowed()))?
             .parse()?;
+        let name = format!("act_{base_name}");
 
         Ok(Self {
-            topic: actuator_state_topic(&base_name),
-            name: format!("act_{base_name}"),
+            topic: actuator_state_topic(&name),
+            name,
             data: RwLock::new(kind.into()),
         })
     }

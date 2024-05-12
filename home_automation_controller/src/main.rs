@@ -15,15 +15,11 @@ fn main() -> anyhow::Result<()> {
     let _config = home_automation_common::OpenTelemetryConfiguration::new("controller")?;
     let app_state = AppState::default();
     home_automation_common::install_signal_handler(app_state.context.clone())?;
-    let (tx, rx) = std::sync::mpsc::channel();
     std::thread::scope(|s| {
-        let discovery = s.spawn({
-            let tx = tx.clone();
-            || EntityDiscoveryTask::new(&app_state, tx)?.run()
-        });
+        let discovery = s.spawn(|| EntityDiscoveryTask::new(&app_state)?.run());
         let client_api = s.spawn(|| ClientApiTask::new(&app_state)?.run());
-        let subscriber = s.spawn(|| SubscriberTask::new(&app_state)?.run(rx));
-        let timeout = s.spawn(|| TimeoutTask::new(&app_state, tx).run());
+        let subscriber = s.spawn(|| SubscriberTask::new(&app_state)?.run());
+        let timeout = s.spawn(|| TimeoutTask::new(&app_state).run());
 
         discovery
             .join()

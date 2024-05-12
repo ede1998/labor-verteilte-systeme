@@ -1,8 +1,3 @@
-use std::{
-    sync::{mpsc::Receiver, Mutex},
-    time::Duration,
-};
-
 use anyhow::Context as _;
 use home_automation_common::{
     load_env,
@@ -12,56 +7,34 @@ use home_automation_common::{
     AnyhowZmq, EntityState,
 };
 
-use crate::state::{Action, AppState, SubscriptionCommand};
+use crate::state::AppState;
 
 pub struct SubscriberTask<'a> {
     app_state: &'a AppState,
-    subscriber: Mutex<zmq_sockets::Subscriber<Linked>>,
+    subscriber: zmq_sockets::Subscriber<Linked>,
 }
 
 impl<'a> SubscriberTask<'a> {
     pub fn new(app_state: &'a AppState) -> anyhow::Result<Self> {
         let address = load_env(home_automation_common::ENV_ENTITY_DATA_ENDPOINT)?;
         let subscriber = zmq_sockets::Subscriber::new(&app_state.context)?.bind(&address)?;
+        subscriber.subscribe("")?;
         Ok(Self {
             app_state,
-            subscriber: Mutex::new(subscriber),
+            subscriber,
         })
     }
 
     #[tracing::instrument(name = "Subscriber", skip(self))]
-    pub fn run(&self, rx: Receiver<SubscriptionCommand>) -> anyhow::Result<()> {
+    pub fn run(&self) -> anyhow::Result<()> {
         tracing::info!("Starting Subscriber.");
-        std::thread::scope(|s| {
-            s.spawn(move || {
-                while !shutdown_requested() {
-                    let Ok(request) = rx.recv_timeout(Duration::from_millis(100)) else {
-                        continue;
-                    };
-                    tracing::debug!("Updating subscription: {request:?}");
-                    let result = {
-                        let socket = self.subscriber.lock().expect("non-poisoned Mutex");
-                        match request.action {
-                            Action::Subscribe => socket.subscribe(request.topic),
-                            Action::Unsubscribe => socket.unsubscribe(request.topic),
-                        }
-                    };
-                    if let Err(e) = result {
-                        if !e.is_zmq_termination() {
-                            tracing::error!("Failed to update subscription: {e:#}");
-                        }
-                    }
-                }
-            });
-
-            while !shutdown_requested() {
-                self.handle_client();
-            }
-        });
+        while !shutdown_requested() {
+            self.handle_client();
+        }
         Ok(())
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(name = "receive sample", skip(self))]
     fn handle_client(&self) {
         let result = self.inner_handle_client();
         if let Err(e) = result {
@@ -74,13 +47,13 @@ impl<'a> SubscriberTask<'a> {
     }
 
     fn inner_handle_client(&self) -> anyhow::Result<()> {
-        let subscriber = self.subscriber.lock().expect("non-poisoned Mutex");
-        let (topic, payload): (String, PublishData) = subscriber.receive()?;
+        let (topic, payload): (String, PublishData) = self.subscriber.receive()?;
 
         let update_state = |name, state| -> anyhow::Result<()> {
             let mut entry = self.app_state.entities.get_mut(&name).with_context(|| {
                 anyhow::anyhow!("Payload {state:?} received for unknown entity {name}")
             })?;
+            tracing::info!("Updating entity {name} with new state {state:?}");
             entry.state = state;
             Ok(())
         };
