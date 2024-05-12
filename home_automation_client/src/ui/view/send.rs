@@ -166,12 +166,12 @@ impl<'a> SendView<'a> {
                 code: KeyCode::Up,
                 kind: KeyEventKind::Press,
                 ..
-            }) => Some(Action::SetRecipientSelection(update_index(Wrapping::inc))),
+            }) => Some(Action::SetRecipientSelection(update_index(Wrapping::dec))),
             Event::Key(KeyEvent {
                 code: KeyCode::Down,
                 kind: KeyEventKind::Press,
                 ..
-            }) => Some(Action::SetRecipientSelection(update_index(Wrapping::dec))),
+            }) => Some(Action::SetRecipientSelection(update_index(Wrapping::inc))),
             event if self.list.selected().is_none() => {
                 Some(Action::TextInput(event.clone().into()))
             }
@@ -196,8 +196,8 @@ impl<'a> SendView<'a> {
                 ),
                 PayloadTab::AirConditioning(list) => {
                     let on = match list.selected()? {
-                        0 => false,
-                        1 => true,
+                        0 => true,
+                        1 => false,
                         _ => return None,
                     };
                     NamedEntityState::actuator(

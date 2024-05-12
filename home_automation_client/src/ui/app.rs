@@ -128,7 +128,7 @@ impl<'a> App<'a> {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self), parent=None)]
     fn send_message(&mut self, msg: NamedEntityState) -> Result<()> {
         use home_automation_common::protobuf::ClientApiCommand;
         let msg = ClientApiCommand::named_entity_state(msg);
