@@ -2,7 +2,11 @@ use std::{collections::HashMap, time::Duration};
 
 use anyhow::{Context as _, Result};
 use crossterm::event;
-use home_automation_common::{protobuf::NamedEntityState, EntityState};
+use home_automation_common::{
+    protobuf::{NamedEntityState, ResponseCode},
+    zmq_sockets::{self, markers::Linked},
+    EntityState,
+};
 
 use crate::network::SystemStateRefresher;
 
@@ -29,6 +33,7 @@ pub enum Action {
 pub struct BackgroundTaskState<'a> {
     pub refresher: &'a SystemStateRefresher,
     pub receiver: std::sync::mpsc::Receiver<HashMap<String, EntityState>>,
+    pub requester: zmq_sockets::Requester<Linked>,
 }
 
 #[derive(Debug)]
@@ -97,7 +102,9 @@ impl<'a> App<'a> {
                     freq_input.input(input);
                 }
             }
-            Some(Action::SendMessage(_)) => todo!(),
+            Some(Action::SendMessage(msg)) => {
+                self.send_message(msg)?;
+            }
             Some(Action::ChangePayloadTab(tab)) => {
                 let send_data = self.view.ensure_send_mut();
                 send_data.tab = tab;
@@ -118,6 +125,17 @@ impl<'a> App<'a> {
             }
             None => {}
         }
+        Ok(())
+    }
+
+    #[tracing::instrument(skip(self))]
+    fn send_message(&mut self, msg: NamedEntityState) -> Result<()> {
+        use home_automation_common::protobuf::ClientApiCommand;
+        let msg = ClientApiCommand::named_entity_state(msg);
+        self.background_task_state.requester.send(msg)?;
+        let reply: ResponseCode = self.background_task_state.requester.receive()?;
+        println!("{reply:?}");
+        // TODO: continue with popup
         Ok(())
     }
 }

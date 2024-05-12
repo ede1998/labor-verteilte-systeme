@@ -25,6 +25,7 @@ where
 pub trait AnyhowZmq {
     fn is_zmq_termination(&self) -> bool;
     fn is_zmq_timeout(&self) -> bool;
+    fn is_zmq_invalid_state(&self) -> bool;
 }
 
 impl AnyhowZmq for anyhow::Error {
@@ -36,6 +37,11 @@ impl AnyhowZmq for anyhow::Error {
     fn is_zmq_timeout(&self) -> bool {
         self.downcast_ref()
             .is_some_and(|e: &zmq::Error| matches!(e, zmq::Error::EAGAIN))
+    }
+
+    fn is_zmq_invalid_state(&self) -> bool {
+        self.downcast_ref()
+            .is_some_and(|e: &zmq::Error| matches!(e, zmq::Error::EFSM))
     }
 }
 
@@ -124,6 +130,13 @@ pub mod protobuf {
             use client_api_command::CommandType;
             ClientApiCommand {
                 command_type: Some(CommandType::Query(SystemStateQuery::default())),
+            }
+        }
+
+        pub fn named_entity_state(named_entity_state: NamedEntityState) -> Self {
+            use client_api_command::CommandType;
+            ClientApiCommand {
+                command_type: Some(CommandType::Action(named_entity_state)),
             }
         }
     }

@@ -283,6 +283,14 @@ pub fn timeout_is_ok(error: anyhow::Error) -> anyhow::Result<()> {
     }
 }
 
+pub fn invalid_state_is_ok(error: anyhow::Error) -> anyhow::Result<()> {
+    if error.is_zmq_invalid_state() {
+        Ok(())
+    } else {
+        Err(error)
+    }
+}
+
 enum Direction {
     Send,
     Receive,

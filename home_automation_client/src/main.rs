@@ -1,5 +1,9 @@
+use std::time::Duration;
+
 use anyhow::{Context, Result};
-use home_automation_common::{zmq_sockets, OpenTelemetryConfiguration};
+use home_automation_common::{
+    load_env, zmq_sockets, OpenTelemetryConfiguration, ENV_CLIENT_API_ENDPOINT,
+};
 
 use crate::{network::SystemStateRefresher, ui::BackgroundTaskState};
 
@@ -10,16 +14,21 @@ mod utility;
 fn main() -> Result<()> {
     let log_file = create_log_file()?;
     let _config = OpenTelemetryConfiguration::with_writer("client", log_file)?;
-    tracing::info_span!("main").in_scope(|| {
+    let context = zmq_sockets::Context::new();
+    let result = tracing::info_span!("main").in_scope(|| {
         tracing::info!("Starting client");
-        let context = zmq_sockets::Context::new();
         let (sender, receiver) = std::sync::mpsc::channel();
         let refresher = SystemStateRefresher::new(&context, sender)?;
+        let mut requester =
+            zmq_sockets::Requester::new(&context)?.connect(&load_env(ENV_CLIENT_API_ENDPOINT)?)?;
+        requester.set_message_exchange_timeout(Some(Duration::from_millis(800)))?;
+
         let handle = refresher.run()?;
 
         let result = ui::run(BackgroundTaskState {
             refresher: &refresher,
             receiver,
+            requester,
         });
 
         tracing::debug!("Unparking refresher thread");
@@ -30,11 +39,14 @@ fn main() -> Result<()> {
             .map_err(|e| anyhow::anyhow!("Refresher task panicked: {e:?}"))?
             .context("Refresher task failed")?;
 
-        // Workaround: For some reason, the destructor of context keeps blocking.
-        std::mem::forget(context);
         tracing::debug!("All threads finished");
         result
-    })
+    });
+
+    // Workaround: For some reason, the destructor of context keeps blocking.
+    std::mem::forget(context);
+
+    result
 }
 
 fn create_log_file() -> Result<std::fs::File> {

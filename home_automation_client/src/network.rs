@@ -8,7 +8,7 @@ use std::{
 use anyhow::Result;
 use home_automation_common::{
     load_env,
-    zmq_sockets::{markers::Linked, timeout_is_ok, Context, Requester},
+    zmq_sockets::{invalid_state_is_ok, markers::Linked, timeout_is_ok, Context, Requester},
     EntityState, ENV_CLIENT_API_ENDPOINT,
 };
 
@@ -34,7 +34,7 @@ impl InnerRefresher {
         let new_actuator = |name| (name, EntityState::New(EntityType::Actuator));
 
         let request = ClientApiCommand::system_state_query();
-        self.requester.send(request)?;
+        self.requester.send(request).or_else(invalid_state_is_ok)?;
         let response: SystemState = self.requester.receive()?;
         tracing::info!("Constructing local system state");
         let sensors = response.sensors.into_iter().map(sensor);
