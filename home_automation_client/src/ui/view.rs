@@ -17,9 +17,11 @@ use tui_textarea::TextArea;
 use super::app::Action;
 
 mod monitor;
+mod popup;
 mod send;
 
 pub use monitor::MonitorView;
+pub use popup::PopUp;
 pub use send::SendView;
 
 pub trait UiView {
@@ -242,16 +244,17 @@ pub enum View {
     #[default]
     Monitor,
     Send(SendData),
+    PopUp(String),
 }
 
 impl View {
     pub fn ensure_send_mut(&mut self) -> &mut SendData {
         loop {
             match self {
-                View::Monitor => {
+                View::Send(data) => break data,
+                _ => {
                     *self = View::Send(Default::default());
                 }
-                View::Send(data) => break data,
             }
         }
     }
@@ -277,7 +280,7 @@ impl View {
                 }
             };
         }
-        all_views!(MonitorView, SendView);
+        all_views!(MonitorView, SendView, PopUp);
 
         match self {
             Self::Monitor => Views::MonitorView(MonitorView(state)),
@@ -288,6 +291,7 @@ impl View {
                 stage: &data.stage,
                 tab: &mut data.tab,
             }),
+            Self::PopUp(text) => Views::PopUp(PopUp(&*text)),
         }
     }
 }

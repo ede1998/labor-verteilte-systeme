@@ -5,7 +5,7 @@ use crossterm::event;
 use home_automation_common::{
     protobuf::{NamedEntityState, ResponseCode},
     zmq_sockets::{self, markers::Linked},
-    EntityState,
+    AnyhowZmq as _, EntityState,
 };
 
 use crate::network::SystemStateRefresher;
@@ -103,7 +103,8 @@ impl<'a> App<'a> {
                 }
             }
             Some(Action::SendMessage(msg)) => {
-                self.send_message(msg)?;
+                let popup_text = self.send_message(msg)?;
+                self.view = View::PopUp(popup_text);
             }
             Some(Action::ChangePayloadTab(tab)) => {
                 let send_data = self.view.ensure_send_mut();
@@ -129,13 +130,33 @@ impl<'a> App<'a> {
     }
 
     #[tracing::instrument(skip(self), parent=None)]
-    fn send_message(&mut self, msg: NamedEntityState) -> Result<()> {
-        use home_automation_common::protobuf::ClientApiCommand;
+    fn send_message(&mut self, msg: NamedEntityState) -> Result<String> {
+        use home_automation_common::protobuf::{response_code::Code, ClientApiCommand};
         let msg = ClientApiCommand::named_entity_state(msg);
-        self.background_task_state.requester.send(msg)?;
-        let reply: ResponseCode = self.background_task_state.requester.receive()?;
-        println!("{reply:?}");
-        // TODO: continue with popup
-        Ok(())
+        let inner = || {
+            self.background_task_state.requester.send(msg)?;
+            let reply: ResponseCode = self.background_task_state.requester.receive()?;
+            Ok(reply)
+        };
+
+        let success = inner().map_or_else(
+            |e: anyhow::Error| {
+                if e.is_zmq_timeout() {
+                    Ok(false)
+                } else {
+                    Err(e)
+                }
+            },
+            |r| Ok(matches!(r.code(), Code::Ok)),
+        )?;
+
+        let text = if success {
+            "Successfully updated entity configuration"
+        } else {
+            "Unknown error occurred during entity configuration"
+        }
+        .to_owned();
+
+        Ok(text)
     }
 }
