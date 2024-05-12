@@ -101,6 +101,11 @@ impl<E: Entity> App<E> {
         let response_code: ResponseCode = requester.receive()?;
         tracing::debug!("Received {response_code:?}");
 
+        anyhow::ensure!(
+            matches!(response_code.code(), Code::Ok),
+            "Failed to register with controller"
+        );
+
         Ok(Sockets {
             publisher,
             replier,
