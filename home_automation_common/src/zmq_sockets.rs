@@ -275,6 +275,14 @@ pub fn termination_is_ok(error: anyhow::Error) -> anyhow::Result<()> {
     }
 }
 
+pub fn timeout_is_ok(error: anyhow::Error) -> anyhow::Result<()> {
+    if error.is_zmq_timeout() {
+        Ok(())
+    } else {
+        Err(error)
+    }
+}
+
 enum Direction {
     Send,
     Receive,

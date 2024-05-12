@@ -24,12 +24,18 @@ where
 
 pub trait AnyhowZmq {
     fn is_zmq_termination(&self) -> bool;
+    fn is_zmq_timeout(&self) -> bool;
 }
 
 impl AnyhowZmq for anyhow::Error {
     fn is_zmq_termination(&self) -> bool {
         self.downcast_ref()
             .is_some_and(|e: &zmq::Error| matches!(e, zmq::Error::ETERM))
+    }
+
+    fn is_zmq_timeout(&self) -> bool {
+        self.downcast_ref()
+            .is_some_and(|e: &zmq::Error| matches!(e, zmq::Error::EAGAIN))
     }
 }
 

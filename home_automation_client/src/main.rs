@@ -16,16 +16,23 @@ fn main() -> Result<()> {
         let (sender, receiver) = std::sync::mpsc::channel();
         let refresher = SystemStateRefresher::new(&context, sender)?;
         let handle = refresher.run()?;
-        // let client = zmq_sockets::Requester::new(&context)?.connect("tcp://localhost:5556")?;
 
         let result = ui::run(BackgroundTaskState {
             refresher: &refresher,
             receiver,
         });
+
+        tracing::debug!("Unparking refresher thread");
+        handle.thread().unpark();
+
         handle
             .join()
             .map_err(|e| anyhow::anyhow!("Refresher task panicked: {e:?}"))?
             .context("Refresher task failed")?;
+
+        // Workaround: For some reason, the destructor of context keeps blocking.
+        std::mem::forget(context);
+        tracing::debug!("All threads finished");
         result
     })
 }

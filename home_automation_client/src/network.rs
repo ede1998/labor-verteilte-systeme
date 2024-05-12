@@ -8,7 +8,7 @@ use std::{
 use anyhow::Result;
 use home_automation_common::{
     load_env,
-    zmq_sockets::{markers::Linked, Context, Requester},
+    zmq_sockets::{markers::Linked, timeout_is_ok, Context, Requester},
     EntityState, ENV_CLIENT_API_ENDPOINT,
 };
 
@@ -50,6 +50,28 @@ impl InnerRefresher {
         self.sender.send(state)?;
         Ok(())
     }
+
+    fn task(mut self, auto_refresh: Arc<AtomicBool>) -> Result<()> {
+        tracing::info!("Starting refresh task");
+        while !home_automation_common::shutdown_requested() {
+            self.refresh_once().or_else(timeout_is_ok)?;
+
+            if home_automation_common::shutdown_requested() {
+                break;
+            }
+            tracing::debug!("Parking refresh thread");
+            if auto_refresh.load(std::sync::atomic::Ordering::SeqCst) {
+                std::thread::park_timeout(REFRESH_INTERVAL);
+            } else {
+                std::thread::park();
+            }
+            tracing::debug!("Unparked refresh thread");
+        }
+
+        tracing::info!("Shutdown of refresher thread");
+
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
@@ -66,7 +88,9 @@ pub struct SystemStateRefresher {
 
 impl SystemStateRefresher {
     pub fn new(context: &Context, sender: Sender<State>) -> Result<Self> {
-        let requester = Requester::new(context)?.connect(&load_env(ENV_CLIENT_API_ENDPOINT)?)?;
+        let mut requester =
+            Requester::new(context)?.connect(&load_env(ENV_CLIENT_API_ENDPOINT)?)?;
+        requester.set_message_exchange_timeout(Some(Duration::from_millis(800)))?;
         Ok(Self {
             inner: Mutex::new(ThreadState::StartPending(InnerRefresher {
                 sender,
@@ -105,20 +129,8 @@ impl SystemStateRefresher {
                 *guard = ThreadState::Running(thread);
                 Err(anyhow::anyhow!("Thread already started"))
             }
-            ThreadState::StartPending(mut inner) => {
-                let handle = std::thread::spawn(move || {
-                    tracing::info!("Starting refresh task");
-                    while !home_automation_common::shutdown_requested() {
-                        inner.refresh_once()?;
-                        if auto_refresh.load(std::sync::atomic::Ordering::SeqCst) {
-                            std::thread::park_timeout(REFRESH_INTERVAL);
-                        } else {
-                            std::thread::park();
-                        }
-                    }
-
-                    Ok(())
-                });
+            ThreadState::StartPending(inner) => {
+                let handle = std::thread::spawn(move || inner.task(auto_refresh));
                 *guard = ThreadState::Running(handle.thread().clone());
 
                 Ok(handle)
