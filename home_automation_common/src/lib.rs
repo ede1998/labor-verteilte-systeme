@@ -190,11 +190,22 @@ pub fn request_shutdown() {
     SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
 }
 
-pub fn install_signal_handler(mut context: zmq_sockets::Context) -> anyhow::Result<()> {
+pub fn install_signal_handler(context: zmq_sockets::Context) -> anyhow::Result<()> {
     ctrlc::set_handler(move || {
         tracing::info!("Shutdown signal received");
-        request_shutdown();
-        context.destroy().expect("Failed to destroy context");
+        if shutdown_requested() {
+            tracing::warn!("Shutdown was already requested previously. Forcing shutdown now.");
+            std::process::abort();
+        }
+        // Workaround: context.destroy() seems to block forever and prevent a second signal from
+        // getting to the ctrlc thread.
+        std::thread::spawn({
+            let mut context = context.clone();
+            move || {
+                request_shutdown();
+                context.destroy().expect("Failed to destroy context");
+            }
+        });
     })
     .context("Failed to install signal handler")
 }

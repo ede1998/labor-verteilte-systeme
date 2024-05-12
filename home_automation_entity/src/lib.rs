@@ -115,14 +115,16 @@ impl<E: Entity> App<E> {
         }
         impl Drop for Dropper<'_> {
             fn drop(&mut self) {
-                let inner = || -> anyhow::Result<()> {
-                    let _span = tracing::info_span!("disconnect").entered();
+                let _span = tracing::info_span!("disconnect").entered();
 
-                    // Ugly workaround
-                    tracing::debug!("Recreating context and requester socket because the one used everywhere else is already closed.");
-                    let context = zmq_sockets::Context::new();
-                    let requester =
+                // Ugly workaround
+                tracing::debug!("Recreating context and requester socket because the one used everywhere else is already closed.");
+                let context = zmq_sockets::Context::new();
+
+                let inner = || -> anyhow::Result<()> {
+                    let mut requester =
                         zmq_sockets::Requester::new(&context)?.connect(self.endpoint)?;
+                    requester.set_message_exchange_timeout(Some(Duration::from_millis(800)))?;
                     let request = self.request.clone();
                     tracing::info!("Sending disconnect request {request:?}");
                     requester.send(request)?;
@@ -131,9 +133,12 @@ impl<E: Entity> App<E> {
                     tracing::info!("Successfully disconnected.");
                     Ok(())
                 };
+
                 if let Err(error) = inner() {
                     tracing::error!(%error, "Failed to properly disconnect: {error:#}");
                 }
+                // Workaround: Seems to block forever when properly destroying the context.
+                std::mem::forget(context);
             }
         }
 
@@ -144,7 +149,6 @@ impl<E: Entity> App<E> {
 
         let mut last = Instant::now();
         while !home_automation_common::shutdown_requested() {
-            // TODO: use park/unpark of this thread
             std::thread::sleep(Duration::from_millis(100));
             if last.elapsed() >= HEARTBEAT_FREQUENCY {
                 if let Err(e) = self.heartbeat(&requester) {

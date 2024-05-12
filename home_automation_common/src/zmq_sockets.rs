@@ -390,6 +390,30 @@ where
             .parse()
             .context("Failed to parse endpoint")
     }
+
+    pub fn set_message_exchange_timeout(
+        &mut self,
+        timeout: Option<std::time::Duration>,
+    ) -> Result<()> {
+        type TimeoutT = i32;
+        const INFINITE: TimeoutT = -1;
+        let ms: TimeoutT = timeout
+            .map(|t| t.as_millis().try_into())
+            .with_context(|| {
+                anyhow::anyhow!("timeout value too large, max value is {}ms", TimeoutT::MAX)
+            })?
+            .unwrap_or(INFINITE);
+
+        tracing::debug!("Setting socket receive and send timeout to {ms}ms");
+
+        self.inner
+            .set_rcvtimeo(ms)
+            .context("Failed to set receive timeout value")?;
+
+        self.inner
+            .set_sndtimeo(ms)
+            .context("Failed to set send timeout value")
+    }
 }
 
 struct TraceInjector<'a>(&'a mut HashMap<String, String>);
