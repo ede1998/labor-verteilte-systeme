@@ -16,7 +16,7 @@ use crate::{
         app::Action,
         view::{PayloadTab, PayloadTabKind},
     },
-    utility::{ApplyIf as _, Wrapping},
+    utility::{ApplyIf as _, HashMapExt, Wrapping},
 };
 
 use super::{prepare_scaffolding, Border, SendStage, TextAreaExt, UiView, View};
@@ -44,7 +44,7 @@ impl<'a> SendView<'a> {
         self.entity_input
             .toggle_focus(entity_focused && !list_focused);
 
-        let list = List::new(self.state.keys().map(Span::raw))
+        let list = List::new(self.state.keys_stable().map(Span::raw))
             .block(Border::Magenta.highlighted(list_focused).untitled())
             // invert color scheme for selected line
             .highlight_style(Modifier::REVERSED);
@@ -149,7 +149,7 @@ impl<'a> SendView<'a> {
                 ..
             }) => {
                 let recipient = match self.list.selected() {
-                    Some(index) => self.state.keys().nth(index)?,
+                    Some(index) => self.state.keys_stable().nth(index)?,
                     None => self.entity_input.text(),
                 };
                 Some(Action::SetMessageRecipient(recipient.to_owned()))

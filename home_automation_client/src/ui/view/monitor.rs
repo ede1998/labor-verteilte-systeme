@@ -10,7 +10,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::ui::app::Action;
+use crate::{ui::app::Action, utility::HashMapExt};
 
 use super::{prepare_scaffolding, UiView, View};
 
@@ -60,7 +60,7 @@ impl<'a> MonitorView<'a> {
                 Constraint::Length(8),
                 Constraint::Percentage(80),
             ])
-            .rows(self.0.iter().map(|(name, state)| {
+            .rows(self.0.iter_stable().map(|(name, state)| {
                 Row::new([
                     name.into(),
                     state.entity_type().to_string().blue(),

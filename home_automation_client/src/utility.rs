@@ -22,6 +22,30 @@ impl<T> ApplyIf for T {
     }
 }
 
+pub trait HashMapExt {
+    type IterItem;
+    type KeysItem;
+    fn iter_stable(self) -> impl Iterator<Item = Self::IterItem>;
+    fn keys_stable(self) -> impl Iterator<Item = Self::KeysItem>;
+}
+
+impl<'a, K: std::cmp::Ord, V> HashMapExt for &'a std::collections::HashMap<K, V> {
+    type IterItem = (&'a K, &'a V);
+    fn iter_stable(self) -> impl Iterator<Item = Self::IterItem> {
+        let mut items: Vec<_> = self.iter().collect();
+        items.sort_by(|(k1, _), (k2, _)| k1.cmp(k2));
+        items.into_iter()
+    }
+
+    type KeysItem = &'a K;
+
+    fn keys_stable(self) -> impl Iterator<Item = Self::KeysItem> {
+        let mut items: Vec<_> = self.keys().collect();
+        items.sort();
+        items.into_iter()
+    }
+}
+
 #[derive(Copy, Clone, Debug)]
 pub struct Wrapping {
     current: usize,
