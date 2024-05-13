@@ -40,6 +40,7 @@ let
 in
 pkgs.mkShell {
   packages = [
+    pkgs.bash
     pkgs.protobuf
     (pkgs.rust-bin.beta.latest.default.override {
       extensions = [

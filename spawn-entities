@@ -1,0 +1,49 @@
+#!/bin/bash
+
+NAMES=(aaron aayan abigail adelaide alan albert alessandra alexis alice allen alvin amalia amanda anaya andrew angelina aria ariana arianna armani \
+arthur aryan aryeh aubrey austin ava aya bella ben blake brady brian bryant bryce calvin carolina cataleya chance chelsea christopher connor damaris \
+danielle dariel dean devin devora dominic edith edward egypt elena elise eliyahu elliot elliott eloise emily erick erika esmeralda eva ezra fatima \
+felix frady francesco francis gavin george giovanna giovanni gitty harlow harry hazel hershel hunter isaac isabel isla israel ivan jackson jacob \
+jaden jaime jamar james jana janiel jax jayce jayla jaylah jaylene jayren jazlyn jennifer john johnny jonas joyce judy juliette justice kaiden \
+kameron kate katherine kaylee keira kelly kiara kyle kylie layla leah leandro leila leilani leo leon leonardo liana lipa london lorenzo luca luka \
+lydia madison maeve maite mandy marcus mariam marielle marilyn martin mason matteo matthew maximilian maximus maya melanie melina michael michelle)
+
+KINDS=(Humidity Temperature AirConditioning Light)
+
+
+spawn_process() {
+  NAME="${NAMES[$RANDOM % ${#NAMES[@]}]}"
+  KIND="${KINDS[$RANDOM % ${#KINDS[@]}]}"
+  
+  case "${KIND}" in
+    "Humidity" | "Temperature")
+      TYPE="sensor"
+      ;;
+    "AirConditioning" | "Light")
+      TYPE="actuator"
+      ;;
+    *)
+      echo "Unkown kind: ${KIND}"
+      exit
+      ;;
+  esac
+  
+  echo Spawning: cargo run --bin "${TYPE}" -- "${NAME}" "${KIND}" &>> "logs/${NAME}_${KIND}.log" &
+  cargo run --bin "${TYPE}" -- "${NAME}" "${KIND}" &>> "logs/${NAME}_${KIND}.log" &
+}
+
+mkdir logs 2> /dev/null
+
+for x in $(seq 1 $1); do
+  spawn_process
+done
+
+
+
+kill_all() {
+    kill -s SIGINT $(jobs -p)
+}
+
+trap kill_all SIGINT
+
+wait < <(jobs -p)
