@@ -1,0 +1,9 @@
+@startuml info
+entity sensor
+entity actuator
+database controller
+actor client
+client <-]: refresh button pressed/cyclic trigger
+client -> controller: SystemStateQuery
+controller --> client: SystemState
+@enduml

@@ -41,6 +41,7 @@ in
 pkgs.mkShell {
   packages = [
     pkgs.bash
+    pkgs.plantuml
     pkgs.protobuf
     (pkgs.rust-bin.beta.latest.default.override {
       extensions = [

@@ -1,0 +1,12 @@
+@startuml publish
+entity sensor
+entity actuator
+database controller
+actor client
+
+loop
+    sensor -> controller: SensorMeasurement
+    controller -> controller: update internally cached sensor values
+    ... configured wait time passes ...
+end
+@enduml

@@ -1,0 +1,29 @@
+@startuml registration
+entity sensor
+entity actuator
+database controller
+actor client
+
+[-> sensor: process started
+sensor -> controller: EntityDiscoveryCommand=Register(port=1337)
+controller -> sensor: connect back-channel on port 1337
+alt success
+controller --> sensor: ResponseCode=Ok
+else failure, e.g. name already registered, failed to connect back-channel
+controller --> sensor: ResponseCode=Error
+end
+loop
+...  after 10 sec ...
+sensor -> controller: EntityDiscoveryCommand=Heartbeat
+return ResponseCode=Ok
+end
+... later ...
+[-> sensor: SIGTERM
+sensor -> controller: EntityDiscoveryCommand=Unregister
+controller -> controller: close back-channel
+alt success
+controller --> sensor: ResponseCode=Ok
+else failure, e.g. already unregistered
+controller --> sensor: ResponseCode=Error
+end
+@enduml

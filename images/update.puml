@@ -1,0 +1,23 @@
+@startuml update
+entity sensor
+entity actuator
+database controller
+actor client
+client -> controller: NamedEntityState
+controller -> controller: find back-channel for requested actuator
+alt entity is actuator
+controller -> actuator: forward NamedEntityState
+activate actuator
+actuator -> actuator: update current state
+actuator -> controller: publish new state
+actuator --> controller: ResponseCode=Ok
+deactivate actuator
+else entity is sensor
+controller -> sensor: forward NamedEntityState
+activate sensor
+sensor -> sensor: update publish frequency
+sensor --> controller: ResponseCode=Ok
+deactivate sensor
+end
+controller --> client: forward ResponseCode=Ok
+@enduml
